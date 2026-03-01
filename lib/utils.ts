@@ -42,6 +42,8 @@ export const STATUS_COLORS: Record<TaskStatus, string> = {
   'En cours': 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
   'Terminé': 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300',
   'Annulé': 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300',
+    'En retard': 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300', // Ajouté
+  'Manquée': 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300',      // Ajouté
 };
 
 export const DOMAIN_COLORS: Record<EventDomain, string> = {
