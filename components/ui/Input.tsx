@@ -31,8 +31,8 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
               'px-4 py-2.5 text-sm transition-all duration-200',
               'focus:outline-none focus:ring-2 focus:ring-sabc-red focus:border-transparent',
               'hover:border-gray-300 dark:hover:border-gray-600',
-              icon && 'pl-10',
-              error && 'border-red-500 focus:ring-red-500',
+              !!icon && 'pl-10',   // ✅ Utilisation de !! pour garantir un boolean
+              !!error && 'border-red-500 focus:ring-red-500', // ✅ Même chose ici
               className
             )}
             {...props}
