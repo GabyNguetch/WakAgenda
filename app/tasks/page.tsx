@@ -8,8 +8,9 @@ import { Card, EmptyState, LoadingSpinner, Modal } from '@/components/ui/Index';
 import { TaskCard } from '@/components/features/TaskCard';
 import { TaskForm } from '@/components/features/TaskForm';
 import { taskService } from '@/services/taskService';
-import { EVENT_CATEGORIES, EVENT_DOMAINS, TASK_STATUSES  } from '@/lib/utils';
-import type { EventCategory, EventDomain, TaskFilters, TaskResponse, TaskStatus } from '@/types';
+import { useDomainList } from '@/hooks/useDomains';
+import { EVENT_CATEGORIES, TASK_STATUSES } from '@/lib/utils';
+import type { EventCategory, TaskFilters, TaskResponse, TaskStatus } from '@/types';
 import { Plus, ListFilter, Trash2, CheckSquare } from 'lucide-react';
 
 export default function TasksPage() {
@@ -19,6 +20,9 @@ export default function TasksPage() {
   const [editTask, setEditTask] = useState<TaskResponse | null>(null);
   const [deleteTask, setDeleteTask] = useState<TaskResponse | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  // ── Domaines dynamiques depuis le backend ──────────────────────────────
+  const { domains } = useDomainList();
 
   const [filters, setFilters] = useState<TaskFilters>({});
 
@@ -73,21 +77,36 @@ export default function TasksPage() {
             <ListFilter size={15} /> Filtres
           </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {/* Filtre catégorie */}
             <Select
               value={filters.category || ''}
               onChange={(e) => setFilter('category', e.target.value)}
-              options={[{ value: '', label: 'Toutes catégories' }, ...EVENT_CATEGORIES.map((c) => ({ value: c, label: c }))]}
+              options={[
+                { value: '', label: 'Toutes catégories' },
+                ...EVENT_CATEGORIES.map((c) => ({ value: c, label: c })),
+              ]}
             />
+
+            {/* Filtre domaine — liste dynamique depuis le backend */}
             <Select
               value={filters.domain || ''}
               onChange={(e) => setFilter('domain', e.target.value)}
-              options={[{ value: '', label: 'Tous domaines' }, ...EVENT_DOMAINS.map((d) => ({ value: d, label: d }))]}
+              options={[
+                { value: '', label: 'Tous domaines' },
+                ...domains.map((d) => ({ value: d.name, label: d.name })),
+              ]}
             />
+
+            {/* Filtre statut */}
             <Select
               value={filters.status || ''}
               onChange={(e) => setFilter('status', e.target.value)}
-              options={[{ value: '', label: 'Tous statuts' }, ...TASK_STATUSES.map((s) => ({ value: s, label: s }))]}
+              options={[
+                { value: '', label: 'Tous statuts' },
+                ...TASK_STATUSES.map((s) => ({ value: s, label: s })),
+              ]}
             />
+
             {hasFilters && (
               <Button variant="ghost" size="sm" onClick={clearFilters}>
                 Effacer les filtres
@@ -128,7 +147,7 @@ export default function TasksPage() {
         )}
       </div>
 
-      {/* Create modal — size="2xl" for 2-column TaskForm */}
+      {/* Create modal */}
       <Modal isOpen={isCreateOpen} onClose={() => setIsCreateOpen(false)} title="Nouvelle tâche" size="2xl">
         <TaskForm
           onSuccess={(t) => { setIsCreateOpen(false); setTasks((prev) => [t, ...prev]); }}
