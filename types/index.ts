@@ -49,7 +49,10 @@ export interface UserUpdate {
 // ─── Tasks ───────────────────────────────────────────────────────────────────
 
 export type EventCategory = 'Réunion' | 'Développement' | 'Formation' | 'Rendu' | 'Autre';
+
+// EventDomain kept only for legacy color mapping — the real domain is a free string from backend
 export type EventDomain = 'Technique' | 'Administratif' | 'Commercial' | 'Transversal';
+
 export type TaskStatus = 'À faire' | 'En cours' | 'Terminé' | 'Annulé' | 'En retard' | 'Manquée';
 export type ReminderDelay = '15 min avant' | '30 min avant' | '1 heure avant' | 'La veille';
 
@@ -59,7 +62,7 @@ export interface TaskCreate {
   start_time: string;
   end_time: string;
   category?: EventCategory;
-  domain?: string; // UUID from DomainResponse
+  domain?: string; // domain name (free string)
   status?: TaskStatus;
   reminder?: ReminderDelay | null;
   notification_enabled?: boolean;
@@ -72,7 +75,7 @@ export interface TaskUpdate {
   start_time?: string | null;
   end_time?: string | null;
   category?: EventCategory | null;
-  domain?: string | null; // UUID from DomainResponse
+  domain?: string | null; // domain name (free string)
   status?: TaskStatus | null;
   reminder?: ReminderDelay | null;
   notification_enabled?: boolean | null;
@@ -87,7 +90,7 @@ export interface TaskResponse {
   start_time: string;
   end_time: string;
   category: EventCategory;
-  domain: string; // UUID or legacy EventDomain string
+  domain: string; // free string from backend
   status: TaskStatus;
   reminder: ReminderDelay | null;
   notification_enabled: boolean;
@@ -108,7 +111,7 @@ export interface TaskStats {
 
 export interface TaskFilters {
   category?: EventCategory;
-  domain?: string;
+  domain?: string; // free string — matches any domain name from backend
   status?: TaskStatus;
   date_from?: string;
   date_to?: string;

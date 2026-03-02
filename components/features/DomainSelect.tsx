@@ -7,7 +7,7 @@ import type { DomainResponse } from '@/types';
 import { cn } from '@/lib/utils';
 
 interface DomainSelectProps {
-  value: string;           // domain name (e.g. "Technique")
+  value: string;            // domain name (e.g. "Technique")
   onChange: (domainName: string) => void;
   label?: string;
   required?: boolean;
@@ -30,13 +30,13 @@ export function DomainSelect({ value, onChange, label, required }: DomainSelectP
     if (val === '__create__') {
       setIsCreateOpen(true);
     } else {
-      onChange(val); // val is now the domain NAME
+      onChange(val); // val = domain name (string)
     }
   };
 
   const handleCreated = (domain: DomainResponse) => {
-    refetch();
-    onChange(domain.name); // use name, not id
+    refetch(); // force re-fetch pour inclure le nouveau domaine
+    onChange(domain.name);
   };
 
   const selectId = label?.toLowerCase().replace(/\s+/g, '-') ?? 'domain-select';
@@ -65,7 +65,7 @@ export function DomainSelect({ value, onChange, label, required }: DomainSelectP
           required={required}
         >
           {isLoading ? (
-            <option value="" disabled>Chargement...</option>
+            <option value="" disabled>Chargement des domaines...</option>
           ) : (
             <>
               <option value="" disabled>Sélectionner un domaine</option>
@@ -73,7 +73,9 @@ export function DomainSelect({ value, onChange, label, required }: DomainSelectP
               {systemDomains.length > 0 && (
                 <optgroup label="Domaines système">
                   {systemDomains.map((d) => (
-                    <option key={d.id} value={d.name}>{d.name}</option>
+                    <option key={d.id} value={d.name}>
+                      {d.name}
+                    </option>
                   ))}
                 </optgroup>
               )}
@@ -81,7 +83,9 @@ export function DomainSelect({ value, onChange, label, required }: DomainSelectP
               {customDomains.length > 0 && (
                 <optgroup label="Domaines personnalisés">
                   {customDomains.map((d) => (
-                    <option key={d.id} value={d.name}>{d.name}</option>
+                    <option key={d.id} value={d.name}>
+                      {d.name}
+                    </option>
                   ))}
                 </optgroup>
               )}
@@ -90,6 +94,13 @@ export function DomainSelect({ value, onChange, label, required }: DomainSelectP
             </>
           )}
         </select>
+
+        {/* Affiche le domaine sélectionné s'il n'est pas dans la liste (cas hérité) */}
+        {!isLoading && value && value !== '__create__' && !domains.find((d) => d.name === value) && (
+          <p className="text-xs text-amber-500 mt-1">
+            Domaine actuel : <strong>{value}</strong> (non trouvé dans la liste — il sera conservé)
+          </p>
+        )}
       </div>
 
       <DomainCreateModal

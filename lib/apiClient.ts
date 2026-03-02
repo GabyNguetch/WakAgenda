@@ -1,4 +1,7 @@
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || ''; 
+// ─── Base URL ─────────────────────────────────────────────────────────────────
+// Côté client : on utilise window.location.origin pour que new URL() fonctionne
+// Côté serveur (SSR) : on utilise '' et on construit l'URL autrement
+const API_BASE_URL = '';
 
 // ─── Console logger ───────────────────────────────────────────────────────────
 
@@ -50,15 +53,29 @@ function logError(method: string, url: string, status: number, error: unknown, d
   console.groupEnd();
 }
 
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+/**
+ * Construit une URL absolue à partir d'un path relatif.
+ * - Côté client  : window.location.origin + path  (ex: http://localhost:3000/api/v1/domains)
+ * - Côté serveur : path tel quel (fetch relatif supporté par Next.js SSR)
+ */
+function buildUrl(path: string, params?: Record<string, string | number | boolean | undefined | null>): string {
+  const base = typeof window !== 'undefined' ? window.location.origin : '';
+  const url = new URL(`${base}${path}`);
+  if (params) {
+    Object.entries(params).forEach(([k, v]) => {
+      if (v !== undefined && v !== null && v !== '') {
+        url.searchParams.append(k, String(v));
+      }
+    });
+  }
+  return url.toString();
+}
+
 // ─── ApiClient ────────────────────────────────────────────────────────────────
 
 class ApiClient {
-  private baseUrl: string;
-
-  constructor(baseUrl: string) {
-    this.baseUrl = baseUrl;
-  }
-
   private getToken(): string | null {
     if (typeof window === 'undefined') return null;
     return localStorage.getItem('access_token');
@@ -75,14 +92,11 @@ class ApiClient {
     return headers;
   }
 
-  async get<T>(path: string, params?: Record<string, string | number | boolean | undefined>): Promise<T> {
-    const url = new URL(`${this.baseUrl}${path}`);
-    if (params) {
-      Object.entries(params).forEach(([k, v]) => {
-        if (v !== undefined && v !== null && v !== '') url.searchParams.append(k, String(v));
-      });
-    }
-    const fullUrl = url.toString();
+  async get<T>(
+    path: string,
+    params?: Record<string, string | number | boolean | undefined | null>
+  ): Promise<T> {
+    const fullUrl = buildUrl(path, params as Record<string, string | number | boolean | undefined>);
     logRequest('GET', fullUrl);
     const t0 = performance.now();
     const res = await fetch(fullUrl, { headers: this.getHeaders() });
@@ -98,7 +112,7 @@ class ApiClient {
   }
 
   async post<T>(path: string, body?: unknown, includeAuth = true): Promise<T> {
-    const fullUrl = `${this.baseUrl}${path}`;
+    const fullUrl = buildUrl(path);
     logRequest('POST', fullUrl, body);
     const t0 = performance.now();
     const res = await fetch(fullUrl, {
@@ -118,7 +132,7 @@ class ApiClient {
   }
 
   async patch<T>(path: string, body?: unknown): Promise<T> {
-    const fullUrl = `${this.baseUrl}${path}`;
+    const fullUrl = buildUrl(path);
     logRequest('PATCH', fullUrl, body);
     const t0 = performance.now();
     const res = await fetch(fullUrl, {
@@ -142,7 +156,7 @@ class ApiClient {
   }
 
   async delete(path: string): Promise<void> {
-    const fullUrl = `${this.baseUrl}${path}`;
+    const fullUrl = buildUrl(path);
     logRequest('DELETE', fullUrl);
     const t0 = performance.now();
     const res = await fetch(fullUrl, {
@@ -159,7 +173,7 @@ class ApiClient {
   }
 
   async postFormData<T>(path: string, formData: FormData): Promise<T> {
-    const fullUrl = `${this.baseUrl}${path}`;
+    const fullUrl = buildUrl(path);
     logRequest('POST', fullUrl, '(FormData – file upload)');
     const token = this.getToken();
     const headers: Record<string, string> = {};
@@ -181,20 +195,17 @@ class ApiClient {
     return data;
   }
 
-  async getBlob(path: string, params?: Record<string, string | undefined>): Promise<Blob> {
-    const url = new URL(`${this.baseUrl}${path}`);
-    if (params) {
-      Object.entries(params).forEach(([k, v]) => {
-        if (v) url.searchParams.append(k, v);
-      });
-    }
-    const fullUrl = url.toString();
+  async getBlob(
+    path: string,
+    params?: Record<string, string | undefined>
+  ): Promise<Blob> {
+    const fullUrl = buildUrl(path, params);
     logRequest('GET', fullUrl);
     const t0 = performance.now();
     const res = await fetch(fullUrl, { headers: this.getHeaders() });
     const duration = Math.round(performance.now() - t0);
     if (!res.ok) {
-      logError('GET', fullUrl, res.status, `Blob request failed`, duration);
+      logError('GET', fullUrl, res.status, 'Blob request failed', duration);
       throw new Error(`HTTP ${res.status}`);
     }
     logResponse('GET', fullUrl, res.status, '(Blob – PDF)', duration);
@@ -202,4 +213,4 @@ class ApiClient {
   }
 }
 
-export const apiClient = new ApiClient(API_BASE_URL);
+export const apiClient = new ApiClient();

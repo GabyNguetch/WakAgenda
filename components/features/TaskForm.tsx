@@ -74,7 +74,7 @@ export function TaskForm({ task, onSuccess, onCancel }: TaskFormProps) {
       )}
 
       {/* Two-column grid on large screens */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-6 gap-y-4">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-6 gap-y-1">
 
         {/* Title — full width */}
         <div className="lg:col-span-2">
@@ -156,7 +156,7 @@ export function TaskForm({ task, onSuccess, onCancel }: TaskFormProps) {
           <Textarea
             value={form.description}
             onChange={(e) => set('description', e.target.value)}
-            rows={3}
+            rows={1}
             placeholder="Notes, détails complémentaires... (optionnel)"
           />
         </div>
@@ -178,7 +178,7 @@ export function TaskForm({ task, onSuccess, onCancel }: TaskFormProps) {
         </div>
 
         {/* Actions — full width */}
-        <div className="lg:col-span-2 flex gap-3 pt-2 border-t border-gray-100 dark:border-gray-800">
+        <div className="lg:col-span-2 flex gap-3 pt-0 border-t border-gray-100 dark:border-gray-800">
           <Button type="button" variant="ghost" onClick={onCancel} className="flex-1">
             Annuler
           </Button>
