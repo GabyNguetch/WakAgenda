@@ -10,20 +10,41 @@ import { Modal } from '@/components/ui/Index';
 import { Button } from '@/components/ui/Button';
 import { taskService } from '@/services/taskService';
 import { reportService } from '@/services/reportService';
+import { downloadWeeklySchedule } from '@/services/updateService';
 import type { TaskResponse, TaskStats } from '@/types/index';
-import { CheckSquare, Clock, AlertTriangle, CheckCircle, Plus, FileDown, CalendarDays } from 'lucide-react';
+import {
+  CheckSquare, Clock, AlertTriangle, CheckCircle,
+  Plus, FileDown, CalendarDays,
+} from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouter } from 'next/navigation';
+
+// ─── Helper : calcule le lundi de la semaine courante ─────────────────────────
+function getCurrentWeekMonday(): string {
+  const today = new Date();
+  const monday = new Date(today);
+  monday.setDate(today.getDate() - ((today.getDay() + 6) % 7));
+  return monday.toISOString().split('T')[0];
+}
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
   const { isAuthenticated, isLoading: authLoading } = useAuth();
   const router = useRouter();
-  const [stats, setStats] = useState<TaskStats | null>(null);
-  const [upcoming, setUpcoming] = useState<TaskResponse[]>([]);
-  const [today, setToday] = useState<TaskResponse[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+
+  const [stats,        setStats]        = useState<TaskStats | null>(null);
+  const [upcoming,     setUpcoming]     = useState<TaskResponse[]>([]);
+  const [today,        setToday]        = useState<TaskResponse[]>([]);
+  const [isLoading,    setIsLoading]    = useState(true);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
-  const [isPdfLoading, setIsPdfLoading] = useState(false);
+
+  // Rapport PDF état
+  const [isPdfLoading,      setIsPdfLoading]      = useState(false);
+
+  // Emploi du temps état
+  const [isScheduleLoading, setIsScheduleLoading] = useState(false);
+  const [scheduleError,     setScheduleError]     = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
     setIsLoading(true);
@@ -60,6 +81,23 @@ export default function DashboardPage() {
     }
   };
 
+  const handleWeeklySchedule = async () => {
+    setIsScheduleLoading(true);
+    setScheduleError(null);
+    try {
+      const weekStart = getCurrentWeekMonday();
+      await downloadWeeklySchedule(weekStart);
+    } catch (err) {
+      setScheduleError(
+        err instanceof Error ? err.message : 'Impossible de générer l\'emploi du temps.',
+      );
+      // Auto-clear after 4s
+      setTimeout(() => setScheduleError(null), 4000);
+    } finally {
+      setIsScheduleLoading(false);
+    }
+  };
+
   if (authLoading || isLoading) {
     return (
       <DashboardLayout>
@@ -73,21 +111,46 @@ export default function DashboardPage() {
   return (
     <DashboardLayout>
       <div className="space-y-6 animate-fade-in">
-        {/* Top actions */}
+
+        {/* ── Top actions ────────────────────────────────────────────────── */}
         <div className="flex items-center justify-between gap-3 flex-wrap">
-          <h2 className="text-lg font-semibold text-gray-700 dark:text-gray-300">Vue d'ensemble</h2>
-          <div className="flex gap-2">
+          <h2 className="text-lg font-semibold text-gray-700 dark:text-gray-300">
+            Vue d'ensemble
+          </h2>
+
+          <div className="flex gap-2 flex-wrap">
+            {/* Rapport PDF */}
             <Button variant="outline" size="sm" onClick={handlePdf} isLoading={isPdfLoading}>
               <FileDown size={15} /> Rapport PDF
             </Button>
-            {/* data-tour attribute for onboarding spotlight */}
+
+            {/* Emploi du temps de la semaine */}
+            <div className="flex flex-col items-end gap-1">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleWeeklySchedule}
+                isLoading={isScheduleLoading}
+                className="border-2 border-sabc-red text-sabc-red hover:bg-sabc-red hover:text-white focus:ring-sabc-red"
+              >
+                <CalendarDays size={15} />
+                {isScheduleLoading ? 'Génération en cours...' : 'Mon emploi du temps'}
+              </Button>
+              {scheduleError && (
+                <p className="text-xs text-red-500 max-w-[220px] text-right animate-slide-up">
+                  ⚠️ {scheduleError}
+                </p>
+              )}
+            </div>
+
+            {/* Nouvelle tâche */}
             <Button size="sm" onClick={() => setIsCreateOpen(true)} data-tour="create-task-btn">
               <Plus size={15} /> Nouvelle tâche
             </Button>
           </div>
         </div>
 
-        {/* Stat cards — data-tour for onboarding */}
+        {/* ── Stat cards ─────────────────────────────────────────────────── */}
         {stats && (
           <div
             className="grid grid-cols-2 lg:grid-cols-4 gap-4 stagger-children"
@@ -120,10 +183,10 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* Charts */}
+        {/* ── Charts ─────────────────────────────────────────────────────── */}
         {stats && <StatsCharts stats={stats} />}
 
-        {/* Two columns: today + upcoming */}
+        {/* ── Two columns: today + upcoming ──────────────────────────────── */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Today */}
           <Card className="p-5">
@@ -131,10 +194,16 @@ export default function DashboardPage() {
               <h3 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
                 <Clock size={16} className="text-sabc-red" /> Tâches du jour
               </h3>
-              <span className="text-xs text-gray-400">{today.length} tâche{today.length > 1 ? 's' : ''}</span>
+              <span className="text-xs text-gray-400">
+                {today.length} tâche{today.length > 1 ? 's' : ''}
+              </span>
             </div>
             {today.length === 0 ? (
-              <EmptyState icon={<Clock size={24} />} title="Aucune tâche aujourd'hui" description="Bonne journée !" />
+              <EmptyState
+                icon={<Clock size={24} />}
+                title="Aucune tâche aujourd'hui"
+                description="Bonne journée !"
+              />
             ) : (
               <div className="space-y-3 stagger-children">
                 {today.map((t) => <TaskCard key={t.id} task={t} compact />)}
@@ -161,10 +230,16 @@ export default function DashboardPage() {
             )}
           </Card>
         </div>
+
       </div>
 
-      {/* size="2xl" for 2-column TaskForm */}
-      <Modal isOpen={isCreateOpen} onClose={() => setIsCreateOpen(false)} title="Nouvelle tâche" size="2xl">
+      {/* Create modal */}
+      <Modal
+        isOpen={isCreateOpen}
+        onClose={() => setIsCreateOpen(false)}
+        title="Nouvelle tâche"
+        size="2xl"
+      >
         <TaskForm
           onSuccess={() => { setIsCreateOpen(false); fetchData(); }}
           onCancel={() => setIsCreateOpen(false)}

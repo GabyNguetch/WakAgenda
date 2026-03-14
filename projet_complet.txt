@@ -2866,6 +2866,13 @@ export default function HomePage() {
     return () => clearTimeout(t);
   }, []);
 
+  // app/layout.tsx ou _app.tsx
+  useEffect(() => {
+    fetch(`${process.env.NEXT_PUBLIC_API_URL}/health`)
+      .then(() => console.log("Backend réveillé ✅"))
+      .catch(() => console.warn("Backend en cours de démarrage..."));
+  }, []);
+
   const handleCTA = () => {
     router.push(isAuthenticated ? '/dashboard' : '/auth');
   };
@@ -7409,43 +7416,6 @@ const config = {
 
 export default config;
 
-
-
-================================================================================
-FICHIER: D:\5GI\STAGE BRASSERIES\WakAgenda\wakagenda\package.json
-================================================================================
-
-{
-  "name": "wakagenda",
-  "version": "0.1.0",
-  "private": true,
-  "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "lint": "eslint"
-  },
-  "dependencies": {
-    "@tiptap/extension-image": "^3.20.0",
-    "@tiptap/extension-underline": "^3.20.0",
-    "@tiptap/react": "^3.20.0",
-    "@tiptap/starter-kit": "^3.20.0",
-    "lucide-react": "^0.575.0",
-    "next": "16.1.6",
-    "react": "19.2.3",
-    "react-dom": "19.2.3"
-  },
-  "devDependencies": {
-    "@tailwindcss/postcss": "^4",
-    "@types/node": "^20",
-    "@types/react": "^19",
-    "@types/react-dom": "^19",
-    "eslint": "^9",
-    "eslint-config-next": "16.1.6",
-    "tailwindcss": "^4",
-    "typescript": "^5"
-  }
-}
 
 ================================================================================
 FICHIER: D:\5GI\STAGE BRASSERIES\WakAgenda\wakagenda\tailwind.config.ts
