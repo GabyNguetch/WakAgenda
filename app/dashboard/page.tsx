@@ -80,15 +80,19 @@ export default function DashboardPage() {
             <Button variant="outline" size="sm" onClick={handlePdf} isLoading={isPdfLoading}>
               <FileDown size={15} /> Rapport PDF
             </Button>
-            <Button size="sm" onClick={() => setIsCreateOpen(true)}>
+            {/* data-tour attribute for onboarding spotlight */}
+            <Button size="sm" onClick={() => setIsCreateOpen(true)} data-tour="create-task-btn">
               <Plus size={15} /> Nouvelle tâche
             </Button>
           </div>
         </div>
 
-        {/* Stat cards */}
+        {/* Stat cards — data-tour for onboarding */}
         {stats && (
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 stagger-children">
+          <div
+            className="grid grid-cols-2 lg:grid-cols-4 gap-4 stagger-children"
+            data-tour="dashboard-stats"
+          >
             <StatCard
               label="Total des tâches"
               value={stats.total}

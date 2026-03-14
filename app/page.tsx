@@ -36,6 +36,13 @@ export default function HomePage() {
     return () => clearTimeout(t);
   }, []);
 
+  // app/layout.tsx ou _app.tsx
+  useEffect(() => {
+    fetch(`${process.env.NEXT_PUBLIC_API_URL}/health`)
+      .then(() => console.log("Backend réveillé ✅"))
+      .catch(() => console.warn("Backend en cours de démarrage..."));
+  }, []);
+
   const handleCTA = () => {
     router.push(isAuthenticated ? '/dashboard' : '/auth');
   };

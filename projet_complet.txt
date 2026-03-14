@@ -695,7 +695,7 @@ export default function AuthPage() {
               />
               <div className="auth-logo-text">
                 <div className="auth-logo-name">Wak<span>Agenda</span></div>
-                <div className="auth-logo-sub">SABC · Direction des SI</div>
+                <div className="auth-logo-sub">SABC · DSI</div>
               </div>
             </div>
 
@@ -1046,15 +1046,19 @@ export default function DashboardPage() {
             <Button variant="outline" size="sm" onClick={handlePdf} isLoading={isPdfLoading}>
               <FileDown size={15} /> Rapport PDF
             </Button>
-            <Button size="sm" onClick={() => setIsCreateOpen(true)}>
+            {/* data-tour attribute for onboarding spotlight */}
+            <Button size="sm" onClick={() => setIsCreateOpen(true)} data-tour="create-task-btn">
               <Plus size={15} /> Nouvelle tâche
             </Button>
           </div>
         </div>
 
-        {/* Stat cards */}
+        {/* Stat cards — data-tour for onboarding */}
         {stats && (
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 stagger-children">
+          <div
+            className="grid grid-cols-2 lg:grid-cols-4 gap-4 stagger-children"
+            data-tour="dashboard-stats"
+          >
             <StatCard
               label="Total des tâches"
               value={stats.total}
@@ -1151,8 +1155,9 @@ import { Card, EmptyState, LoadingSpinner, Modal } from '@/components/ui/Index';
 import { TaskCard } from '@/components/features/TaskCard';
 import { TaskForm } from '@/components/features/TaskForm';
 import { taskService } from '@/services/taskService';
-import { EVENT_CATEGORIES, EVENT_DOMAINS, TASK_STATUSES  } from '@/lib/utils';
-import type { EventCategory, EventDomain, TaskFilters, TaskResponse, TaskStatus } from '@/types';
+import { useDomainList } from '@/hooks/useDomains';
+import { EVENT_CATEGORIES, TASK_STATUSES } from '@/lib/utils';
+import type { EventCategory, TaskFilters, TaskResponse, TaskStatus } from '@/types';
 import { Plus, ListFilter, Trash2, CheckSquare } from 'lucide-react';
 
 export default function TasksPage() {
@@ -1162,6 +1167,9 @@ export default function TasksPage() {
   const [editTask, setEditTask] = useState<TaskResponse | null>(null);
   const [deleteTask, setDeleteTask] = useState<TaskResponse | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  // ── Domaines dynamiques depuis le backend ──────────────────────────────
+  const { domains } = useDomainList();
 
   const [filters, setFilters] = useState<TaskFilters>({});
 
@@ -1216,21 +1224,36 @@ export default function TasksPage() {
             <ListFilter size={15} /> Filtres
           </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {/* Filtre catégorie */}
             <Select
               value={filters.category || ''}
               onChange={(e) => setFilter('category', e.target.value)}
-              options={[{ value: '', label: 'Toutes catégories' }, ...EVENT_CATEGORIES.map((c) => ({ value: c, label: c }))]}
+              options={[
+                { value: '', label: 'Toutes catégories' },
+                ...EVENT_CATEGORIES.map((c) => ({ value: c, label: c })),
+              ]}
             />
+
+            {/* Filtre domaine — liste dynamique depuis le backend */}
             <Select
               value={filters.domain || ''}
               onChange={(e) => setFilter('domain', e.target.value)}
-              options={[{ value: '', label: 'Tous domaines' }, ...EVENT_DOMAINS.map((d) => ({ value: d, label: d }))]}
+              options={[
+                { value: '', label: 'Tous domaines' },
+                ...domains.map((d) => ({ value: d.name, label: d.name })),
+              ]}
             />
+
+            {/* Filtre statut */}
             <Select
               value={filters.status || ''}
               onChange={(e) => setFilter('status', e.target.value)}
-              options={[{ value: '', label: 'Tous statuts' }, ...TASK_STATUSES.map((s) => ({ value: s, label: s }))]}
+              options={[
+                { value: '', label: 'Tous statuts' },
+                ...TASK_STATUSES.map((s) => ({ value: s, label: s })),
+              ]}
             />
+
             {hasFilters && (
               <Button variant="ghost" size="sm" onClick={clearFilters}>
                 Effacer les filtres
@@ -1271,7 +1294,7 @@ export default function TasksPage() {
         )}
       </div>
 
-      {/* Create modal — size="2xl" for 2-column TaskForm */}
+      {/* Create modal */}
       <Modal isOpen={isCreateOpen} onClose={() => setIsCreateOpen(false)} title="Nouvelle tâche" size="2xl">
         <TaskForm
           onSuccess={(t) => { setIsCreateOpen(false); setTasks((prev) => [t, ...prev]); }}
@@ -1326,84 +1349,447 @@ FICHIER: D:\5GI\STAGE BRASSERIES\WakAgenda\wakagenda\app\calendar\page.tsx
 
 import { useCallback, useEffect, useState } from 'react';
 import { DashboardLayout } from '@/components/layout/Dashboardlayout';
-import { Badge, Card, EmptyState, Modal } from '@/components/ui/Index';
 import { TaskForm } from '@/components/features/TaskForm';
 import { Button } from '@/components/ui/Button';
 import { taskService } from '@/services/taskService';
 import type { TaskResponse } from '@/types';
 import { CATEGORY_COLORS, formatTime } from '@/lib/utils';
-import { ChevronLeft, ChevronRight, Plus, Calendar } from 'lucide-react';
+import {
+  ChevronLeft, ChevronRight, Plus, Calendar, Clock, Tag,
+  Layers, Bell, FileText, Edit2, Trash2, MessageSquare,
+  X, CheckCircle, AlertCircle, RotateCcw, XCircle, AlarmClock
+} from 'lucide-react';
 
+// ── Types ──────────────────────────────────────────────────────────────────────
 type ViewMode = 'month' | 'week' | 'day';
 
-const DAYS_FR = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
-const MONTHS_FR = ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'];
+// ── Constantes ─────────────────────────────────────────────────────────────────
+const DAYS_FR   = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
+const DAYS_FULL = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche'];
+const MONTHS_FR = ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
+                   'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'];
 
+const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; icon: React.ReactNode }> = {
+  'À faire':   { label: 'À faire',   color: 'text-blue-600 dark:text-blue-400',   bg: 'bg-blue-50 dark:bg-blue-900/20',   icon: <RotateCcw size={13} /> },
+  'En cours':  { label: 'En cours',  color: 'text-amber-600 dark:text-amber-400', bg: 'bg-amber-50 dark:bg-amber-900/20', icon: <AlarmClock size={13} /> },
+  'Terminé':   { label: 'Terminé',   color: 'text-green-600 dark:text-green-400', bg: 'bg-green-50 dark:bg-green-900/20', icon: <CheckCircle size={13} /> },
+  'Annulé':    { label: 'Annulé',    color: 'text-gray-500 dark:text-gray-400',   bg: 'bg-gray-100 dark:bg-gray-800',     icon: <XCircle size={13} /> },
+  'En retard': { label: 'En retard', color: 'text-red-600 dark:text-red-400',     bg: 'bg-red-50 dark:bg-red-900/20',     icon: <AlertCircle size={13} /> },
+  'Manquée':   { label: 'Manquée',   color: 'text-red-700 dark:text-red-500',     bg: 'bg-red-50 dark:bg-red-900/30',     icon: <X size={13} /> },
+};
+
+// ── Helpers ────────────────────────────────────────────────────────────────────
+
+/**
+ * ✅ FIX PRINCIPAL : Convertit une Date en "YYYY-MM-DD" en heure LOCALE
+ * (et non UTC comme le ferait toISOString()).
+ * Sans ce fix, un stagiaire à UTC+1 voit ses tâches décalées d'un jour.
+ */
+function toLocalDateStr(d: Date): string {
+  const year  = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day   = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+/**
+ * ✅ FIX : Crée une Date à partir d'une chaîne "YYYY-MM-DD" sans décalage UTC.
+ * new Date('2025-06-15') → interprété comme UTC minuit → décalage à UTC+1.
+ * new Date('2025-06-15T12:00:00') → interprété en heure locale → correct.
+ */
+function localDate(dateStr: string): Date {
+  return new Date(`${dateStr}T12:00:00`);
+}
+
+function getWeekDays(baseDate: Date): Date[] {
+  const d = new Date(baseDate);
+  const day = d.getDay() === 0 ? 6 : d.getDay() - 1; // Lundi = 0
+  d.setDate(d.getDate() - day);
+  return Array.from({ length: 7 }, (_, i) => {
+    const clone = new Date(d);
+    clone.setDate(clone.getDate() + i);
+    return clone;
+  });
+}
+
+function formatDuration(start: string, end: string): string {
+  const [sh, sm] = start.split(':').map(Number);
+  const [eh, em] = end.split(':').map(Number);
+  const mins = (eh * 60 + em) - (sh * 60 + sm);
+  if (mins <= 0) return '';
+  return mins >= 60
+    ? `${Math.floor(mins / 60)}h${mins % 60 > 0 ? String(mins % 60).padStart(2, '0') : ''}`
+    : `${mins}min`;
+}
+
+// ── Composant badge statut ─────────────────────────────────────────────────────
+function StatusBadge({ status }: { status: string }) {
+  const cfg = STATUS_CONFIG[status] || STATUS_CONFIG['À faire'];
+  return (
+    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold ${cfg.bg} ${cfg.color}`}>
+      {cfg.icon} {cfg.label}
+    </span>
+  );
+}
+
+// ── Pill de tâche (vue mois) ────────────────────────────────────────────────────
+function TaskPill({ task, onClick }: { task: TaskResponse; onClick: () => void }) {
+  const colorClass = CATEGORY_COLORS[task.category] || 'bg-gray-100 text-gray-700';
+  return (
+    <button
+      onClick={(e) => { e.stopPropagation(); onClick(); }}
+      className={`w-full text-left text-[10px] sm:text-xs px-1.5 py-0.5 rounded-md truncate font-semibold transition-all hover:scale-[1.02] hover:shadow-sm ${colorClass}`}
+      title={task.title}
+    >
+      <span className="opacity-60 mr-1">{formatTime(task.start_time)}</span>
+      {task.title}
+    </button>
+  );
+}
+
+// ── Modal détail tâche ─────────────────────────────────────────────────────────
+function TaskDetailModal({
+  task, onClose, onEdit, onDelete, onCommentOpen,
+}: {
+  task: TaskResponse;
+  onClose: () => void;
+  onEdit: () => void;
+  onDelete: () => void;
+  onCommentOpen: () => void;
+}) {
+  const duration  = formatDuration(task.start_time, task.end_time);
+  const statusCfg = STATUS_CONFIG[task.status] || STATUS_CONFIG['À faire'];
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={onClose}>
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
+      <div
+        className="relative w-full sm:max-w-lg bg-white dark:bg-gray-900 rounded-t-3xl sm:rounded-2xl shadow-2xl overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+        style={{ maxHeight: '92vh' }}
+      >
+        {/* Drag bar (mobile) */}
+        <div className="sm:hidden flex justify-center pt-3 pb-1">
+          <div className="w-10 h-1 rounded-full bg-gray-200 dark:bg-gray-700" />
+        </div>
+
+        {/* Header coloré */}
+        <div className={`px-6 pt-4 pb-5 ${statusCfg.bg}`}>
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex-1 min-w-0">
+              <StatusBadge status={task.status} />
+              <h2 className="mt-2 text-lg font-bold text-gray-900 dark:text-white leading-snug line-clamp-2">
+                {task.title}
+              </h2>
+            </div>
+            <button
+              onClick={onClose}
+              className="flex-shrink-0 p-1.5 rounded-xl text-gray-400 hover:text-gray-600 hover:bg-white/50 dark:hover:bg-gray-700/50 transition-colors mt-0.5"
+            >
+              <X size={18} />
+            </button>
+          </div>
+        </div>
+
+        {/* Corps */}
+        <div className="overflow-y-auto px-6 py-4 space-y-4" style={{ maxHeight: '55vh' }}>
+          <div className="grid grid-cols-2 gap-3">
+
+            <div className="flex items-center gap-2.5 p-3 rounded-xl bg-gray-50 dark:bg-gray-800">
+              <Calendar size={15} className="text-sabc-red flex-shrink-0" />
+              <div>
+                <p className="text-[10px] text-gray-400 uppercase tracking-wide font-medium">Date</p>
+                {/* ✅ FIX : utilise localDate() pour éviter le décalage */}
+                <p className="text-sm font-semibold text-gray-800 dark:text-gray-200">
+                  {localDate(task.task_date).toLocaleDateString('fr-FR', {
+                    day: 'numeric', month: 'short', year: 'numeric',
+                  })}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2.5 p-3 rounded-xl bg-gray-50 dark:bg-gray-800">
+              <Clock size={15} className="text-sabc-red flex-shrink-0" />
+              <div>
+                <p className="text-[10px] text-gray-400 uppercase tracking-wide font-medium">Horaire</p>
+                <p className="text-sm font-semibold text-gray-800 dark:text-gray-200">
+                  {formatTime(task.start_time)} – {formatTime(task.end_time)}
+                  {duration && <span className="text-xs text-gray-400 ml-1">({duration})</span>}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2.5 p-3 rounded-xl bg-gray-50 dark:bg-gray-800">
+              <Tag size={15} className="text-sabc-red flex-shrink-0" />
+              <div>
+                <p className="text-[10px] text-gray-400 uppercase tracking-wide font-medium">Catégorie</p>
+                <p className="text-sm font-semibold text-gray-800 dark:text-gray-200">{task.category}</p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2.5 p-3 rounded-xl bg-gray-50 dark:bg-gray-800">
+              <Layers size={15} className="text-sabc-red flex-shrink-0" />
+              <div>
+                <p className="text-[10px] text-gray-400 uppercase tracking-wide font-medium">Domaine</p>
+                <p className="text-sm font-semibold text-gray-800 dark:text-gray-200 truncate">
+                  {task.domain || <span className="text-gray-400 font-normal italic">Non défini</span>}
+                </p>
+              </div>
+            </div>
+
+            {task.reminder && (
+              <div className="col-span-2 flex items-center gap-2.5 p-3 rounded-xl bg-amber-50 dark:bg-amber-900/20">
+                <Bell size={15} className="text-amber-500 flex-shrink-0" />
+                <div>
+                  <p className="text-[10px] text-amber-600 dark:text-amber-400 uppercase tracking-wide font-medium">Rappel</p>
+                  <p className="text-sm font-semibold text-gray-800 dark:text-gray-200">{task.reminder}</p>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {task.description && (
+            <div className="p-3 rounded-xl bg-gray-50 dark:bg-gray-800 space-y-1.5">
+              <div className="flex items-center gap-1.5 text-xs font-semibold text-gray-400 uppercase tracking-wide">
+                <FileText size={12} /> Notes
+              </div>
+              <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed whitespace-pre-wrap">
+                {task.description}
+              </p>
+            </div>
+          )}
+        </div>
+
+        {/* Actions */}
+        <div className="px-6 py-4 border-t border-gray-100 dark:border-gray-800 flex gap-2">
+          <button
+            onClick={onCommentOpen}
+            className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 text-sm font-semibold hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+          >
+            <MessageSquare size={15} /> Commenter
+          </button>
+          <button
+            onClick={onEdit}
+            className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 text-sm font-semibold hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors"
+          >
+            <Edit2 size={15} /> Modifier
+          </button>
+          <button
+            onClick={onDelete}
+            className="flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl bg-red-50 dark:bg-red-900/20 text-red-500 dark:text-red-400 text-sm font-semibold hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors"
+          >
+            <Trash2 size={15} />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Modal wrapper générique ────────────────────────────────────────────────────
+function Modal({ isOpen, onClose, title, children, size = 'md' }: {
+  isOpen: boolean; onClose: () => void; title: string; children: React.ReactNode; size?: 'md' | '2xl';
+}) {
+  if (!isOpen) return null;
+  const maxW = size === '2xl' ? 'sm:max-w-2xl' : 'sm:max-w-lg';
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={onClose}>
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
+      <div
+        className={`relative w-full ${maxW} bg-white dark:bg-gray-900 rounded-t-3xl sm:rounded-2xl shadow-2xl overflow-hidden`}
+        onClick={(e) => e.stopPropagation()}
+        style={{ maxHeight: '92vh' }}
+      >
+        <div className="sm:hidden flex justify-center pt-3 pb-1">
+          <div className="w-10 h-1 rounded-full bg-gray-200 dark:bg-gray-700" />
+        </div>
+        <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-gray-100 dark:border-gray-800">
+          <h2 className="text-base font-bold text-gray-900 dark:text-white">{title}</h2>
+          <button onClick={onClose} className="p-1.5 rounded-xl text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+            <X size={18} />
+          </button>
+        </div>
+        <div className="overflow-y-auto px-6 py-4" style={{ maxHeight: 'calc(92vh - 80px)' }}>
+          {children}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Modal commentaire ──────────────────────────────────────────────────────────
+function CommentModal({ task, onClose, onSaved }: {
+  task: TaskResponse; onClose: () => void; onSaved: () => void;
+}) {
+  const [text, setText]   = useState('');
+  const [saving, setSaving] = useState(false);
+
+  const handleSave = async () => {
+    if (!text.trim()) return;
+    setSaving(true);
+    try {
+      onSaved();
+      onClose();
+    } catch {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Modal isOpen title={`Commenter — ${task.title}`} onClose={onClose}>
+      <div className="space-y-3">
+        <textarea
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          rows={5}
+          placeholder="Rédigez votre commentaire..."
+          className="w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-sm text-gray-800 dark:text-gray-200 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-sabc-red/30 resize-none"
+          autoFocus
+        />
+        <div className="flex gap-2 justify-end">
+          <button onClick={onClose} className="px-4 py-2 rounded-xl text-sm font-semibold text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+            Annuler
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={saving || !text.trim()}
+            className="px-5 py-2 rounded-xl bg-sabc-red text-white text-sm font-semibold hover:bg-red-700 disabled:opacity-50 transition-colors"
+          >
+            {saving ? 'Envoi...' : 'Envoyer'}
+          </button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+// ════════════════════════════════════════════════════════════════════════════════
+// PAGE PRINCIPALE
+// ════════════════════════════════════════════════════════════════════════════════
 export default function CalendarPage() {
-  const [tasks, setTasks] = useState<TaskResponse[]>([]);
+  const [tasks, setTasks]             = useState<TaskResponse[]>([]);
+  const [isLoading, setIsLoading]     = useState(true);
   const [currentDate, setCurrentDate] = useState(new Date());
-  const [viewMode, setViewMode] = useState<ViewMode>('month');
+  const [viewMode, setViewMode]       = useState<ViewMode>('month');
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
+
+  // Modals
   const [isCreateOpen, setIsCreateOpen] = useState(false);
-  const [selectedTask, setSelectedTask] = useState<TaskResponse | null>(null);
+  const [detailTask, setDetailTask]     = useState<TaskResponse | null>(null);
+  const [editTask, setEditTask]         = useState<TaskResponse | null>(null);
+  const [commentTask, setCommentTask]   = useState<TaskResponse | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<TaskResponse | null>(null);
+  const [deleting, setDeleting]         = useState(false);
+
+  // ✅ FIX : date du jour calculée en heure locale
+  const todayStr = toLocalDateStr(new Date());
 
   const fetchTasks = useCallback(async () => {
+    setIsLoading(true);
     try {
       const data = await taskService.listTasks({ limit: 500 });
       setTasks(data);
-    } catch {}
+    } catch {
+      // silencieux
+    } finally {
+      setIsLoading(false);
+    }
   }, []);
 
   useEffect(() => { fetchTasks(); }, [fetchTasks]);
 
-  const getTasksForDate = (dateStr: string) =>
-    tasks.filter((t) => t.task_date === dateStr);
+  // ✅ FIX : comparaison directe task_date (string "YYYY-MM-DD") avec toLocalDateStr
+  const getTasksForDate = useCallback((dateStr: string): TaskResponse[] =>
+    tasks
+      .filter((t) => t.task_date === dateStr)
+      .sort((a, b) => a.start_time.localeCompare(b.start_time)),
+  [tasks]);
 
-  const toDateStr = (d: Date) => d.toISOString().split('T')[0];
-
-  const getMonthDays = () => {
-    const year = currentDate.getFullYear();
-    const month = currentDate.getMonth();
-    const firstDay = new Date(year, month, 1);
-    const lastDay = new Date(year, month + 1, 0);
-
-    let startDay = firstDay.getDay() - 1;
-    if (startDay === -1) startDay = 6;
-
-    const days: (Date | null)[] = [];
-    for (let i = 0; i < startDay; i++) days.push(null);
-    for (let d = 1; d <= lastDay.getDate(); d++) days.push(new Date(year, month, d));
-
-    return days;
-  };
-
+  // ── Navigation ───────────────────────────────────────────────────────────────
   const navigate = (dir: 1 | -1) => {
-    const d = new Date(currentDate);
-    if (viewMode === 'month') d.setMonth(d.getMonth() + dir);
-    else if (viewMode === 'week') d.setDate(d.getDate() + dir * 7);
-    else d.setDate(d.getDate() + dir);
-    setCurrentDate(d);
+    setCurrentDate((prev) => {
+      const d = new Date(prev);
+      if (viewMode === 'month')     d.setMonth(d.getMonth() + dir);
+      else if (viewMode === 'week') d.setDate(d.getDate() + dir * 7);
+      else                          d.setDate(d.getDate() + dir);
+      return d;
+    });
   };
 
   const title = viewMode === 'month'
     ? `${MONTHS_FR[currentDate.getMonth()]} ${currentDate.getFullYear()}`
     : viewMode === 'week'
-    ? `Semaine du ${toDateStr(currentDate)}`
-    : toDateStr(currentDate);
+    ? (() => {
+        const days = getWeekDays(currentDate);
+        const sameMonth = days[0].getMonth() === days[6].getMonth();
+        return sameMonth
+          ? `${days[0].getDate()} – ${days[6].getDate()} ${MONTHS_FR[days[6].getMonth()]} ${days[6].getFullYear()}`
+          : `${days[0].getDate()} ${MONTHS_FR[days[0].getMonth()]} – ${days[6].getDate()} ${MONTHS_FR[days[6].getMonth()]} ${days[6].getFullYear()}`;
+      })()
+    : localDate(toLocalDateStr(currentDate)).toLocaleDateString('fr-FR', {
+        weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
+      });
 
-  const todayStr = toDateStr(new Date());
+  // ── Grille mois (7 colonnes) ─────────────────────────────────────────────────
+  const getMonthDays = (): (Date | null)[] => {
+    const year  = currentDate.getFullYear();
+    const month = currentDate.getMonth();
+    const first = new Date(year, month, 1);
+    const last  = new Date(year, month + 1, 0);
+    // getDay() : 0=Dim, 1=Lun … → on veut Lun=0
+    let startDay = first.getDay() - 1;
+    if (startDay === -1) startDay = 6;
+    const days: (Date | null)[] = [];
+    for (let i = 0; i < startDay; i++) days.push(null);
+    for (let d = 1; d <= last.getDate(); d++) days.push(new Date(year, month, d));
+    return days;
+  };
 
+  // ── Handlers ─────────────────────────────────────────────────────────────────
+  const handleDeleteConfirm = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      await taskService.deleteTask(deleteTarget.id);
+      setTasks((prev) => prev.filter((t) => t.id !== deleteTarget.id));
+      setDeleteTarget(null);
+      setDetailTask(null);
+    } catch {} finally { setDeleting(false); }
+  };
+
+  const openDetail = (task: TaskResponse) => {
+    setDetailTask(task);
+    setEditTask(null);
+  };
+
+  const openCreate = (dateStr: string) => {
+    setSelectedDate(dateStr);
+    setIsCreateOpen(true);
+  };
+
+  // ── Rendu ─────────────────────────────────────────────────────────────────────
   return (
     <DashboardLayout title="Calendrier">
       <div className="space-y-4 animate-fade-in">
-        {/* Controls */}
+
+        {/* ── Barre de contrôle ──────────────────────────────────────────────── */}
         <div className="flex items-center justify-between gap-3 flex-wrap">
-          <div className="flex items-center gap-2">
-            <button onClick={() => navigate(-1)} className="p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-gray-600 dark:text-gray-400">
+
+          {/* Navigation + titre */}
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={() => navigate(-1)}
+              className="p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-gray-500 dark:text-gray-400"
+            >
               <ChevronLeft size={18} />
             </button>
-            <span className="text-base font-bold text-gray-900 dark:text-white min-w-[180px] text-center">{title}</span>
-            <button onClick={() => navigate(1)} className="p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-gray-600 dark:text-gray-400">
+            <span className="text-sm sm:text-base font-bold text-gray-900 dark:text-white min-w-[160px] sm:min-w-[220px] text-center capitalize">
+              {title}
+            </span>
+            <button
+              onClick={() => navigate(1)}
+              className="p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-gray-500 dark:text-gray-400"
+            >
               <ChevronRight size={18} />
             </button>
             <Button variant="ghost" size="sm" onClick={() => setCurrentDate(new Date())}>
@@ -1411,68 +1797,119 @@ export default function CalendarPage() {
             </Button>
           </div>
 
+          {/* Vue + Ajouter */}
           <div className="flex items-center gap-2">
-            <div className="flex bg-gray-100 dark:bg-gray-800 rounded-xl p-1 gap-1">
+            <div className="flex bg-gray-100 dark:bg-gray-800 rounded-xl p-1 gap-0.5">
               {(['month', 'week', 'day'] as ViewMode[]).map((v) => (
                 <button
                   key={v}
                   onClick={() => setViewMode(v)}
                   className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${
-                    viewMode === v ? 'bg-white dark:bg-gray-900 text-sabc-red shadow-sm' : 'text-gray-500 dark:text-gray-400'
+                    viewMode === v
+                      ? 'bg-white dark:bg-gray-900 text-sabc-red shadow-sm'
+                      : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
                   }`}
                 >
                   {v === 'month' ? 'Mois' : v === 'week' ? 'Semaine' : 'Jour'}
                 </button>
               ))}
             </div>
-            <Button size="sm" onClick={() => { setSelectedDate(todayStr); setIsCreateOpen(true); }}>
+            <Button size="sm" onClick={() => openCreate(todayStr)}>
               <Plus size={15} /> Ajouter
             </Button>
           </div>
         </div>
 
-        {/* Month view */}
-        {viewMode === 'month' && (
-          <Card className="overflow-hidden">
-            <div className="grid grid-cols-7 border-b border-gray-100 dark:border-gray-800">
+        {/* Loader */}
+        {isLoading && (
+          <div className="flex items-center justify-center py-8">
+            <div className="w-8 h-8 border-2 border-sabc-red/30 border-t-sabc-red rounded-full animate-spin" />
+          </div>
+        )}
+
+        {/* ════════════════════════════════════════════════════════════════════ */}
+        {/* VUE MOIS                                                            */}
+        {/* ════════════════════════════════════════════════════════════════════ */}
+        {!isLoading && viewMode === 'month' && (
+          <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 overflow-hidden shadow-sm">
+            {/* En-têtes jours */}
+            <div className="grid grid-cols-7 border-b border-gray-100 dark:border-gray-800 bg-gray-50/80 dark:bg-gray-800/50">
               {DAYS_FR.map((d) => (
-                <div key={d} className="py-3 text-center text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+                <div key={d} className="py-2.5 text-center text-[11px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">
                   {d}
                 </div>
               ))}
             </div>
-            <div className="grid grid-cols-7">
+
+            {/* Grille */}
+            <div className="grid grid-cols-7 divide-x divide-gray-50 dark:divide-gray-800">
               {getMonthDays().map((day, i) => {
-                const dateStr = day ? toDateStr(day) : null;
+                // ✅ FIX : utilise toLocalDateStr au lieu de toISOString
+                const dateStr  = day ? toLocalDateStr(day) : null;
                 const dayTasks = dateStr ? getTasksForDate(dateStr) : [];
-                const isToday = dateStr === todayStr;
+                const isToday  = dateStr === todayStr;
+                const isWeekend = day ? (day.getDay() === 0 || day.getDay() === 6) : false;
+
                 return (
                   <div
                     key={i}
-                    onClick={() => day && (setSelectedDate(dateStr), setIsCreateOpen(dayTasks.length === 0))}
-                    className={`min-h-[90px] p-2 border-r border-b border-gray-50 dark:border-gray-800/50 transition-colors ${
-                      day ? 'cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/50' : 'bg-gray-50/50 dark:bg-gray-900/30'
+                    onClick={() => day && openCreate(dateStr!)}
+                    className={`min-h-[100px] p-1.5 border-b border-gray-50 dark:border-gray-800 transition-colors group relative ${
+                      day
+                        ? `cursor-pointer ${
+                            isWeekend
+                              ? 'bg-gray-50/50 dark:bg-gray-800/30 hover:bg-gray-100/70 dark:hover:bg-gray-800/60'
+                              : 'hover:bg-gray-50/80 dark:hover:bg-gray-800/30'
+                          }`
+                        : 'bg-gray-50/30 dark:bg-gray-900/50'
                     }`}
                   >
                     {day && (
                       <>
-                        <span className={`inline-flex items-center justify-center w-7 h-7 text-sm font-medium rounded-full mb-1 transition-colors ${
-                          isToday ? 'bg-sabc-red text-white font-bold' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
-                        }`}>
-                          {day.getDate()}
-                        </span>
+                        {/* Numéro du jour */}
+                        <div className="flex items-center justify-between mb-1">
+                          <span
+                            className={`inline-flex items-center justify-center w-6 h-6 text-xs font-bold rounded-full transition-colors ${
+                              isToday
+                                ? 'bg-sabc-red text-white'
+                                : isWeekend
+                                ? 'text-gray-400 dark:text-gray-500'
+                                : 'text-gray-700 dark:text-gray-300 group-hover:bg-gray-200 dark:group-hover:bg-gray-700'
+                            }`}
+                          >
+                            {day.getDate()}
+                          </span>
+                          {/* Compteur de tâches */}
+                          {dayTasks.length > 0 && (
+                            <span className="text-[10px] font-bold text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity">
+                              {dayTasks.length}
+                            </span>
+                          )}
+                          {/* Bouton + au hover */}
+                          <button
+                            onClick={(e) => { e.stopPropagation(); openCreate(dateStr!); }}
+                            className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded-md text-gray-400 hover:text-sabc-red hover:bg-red-50 dark:hover:bg-red-900/20"
+                          >
+                            <Plus size={12} />
+                          </button>
+                        </div>
+
+                        {/* Tâches */}
                         <div className="space-y-0.5">
-                          {dayTasks.slice(0, 2).map((t) => (
-                            <div
-                              key={t.id}
-                              onClick={(e) => { e.stopPropagation(); setSelectedTask(t); }}
-                              className={`text-xs px-1.5 py-0.5 rounded truncate font-medium cursor-pointer ${CATEGORY_COLORS[t.category]}`}
-                            >
-                              {t.title}
-                            </div>
+                          {dayTasks.slice(0, 3).map((t) => (
+                            <TaskPill key={t.id} task={t} onClick={() => openDetail(t)} />
                           ))}
-                          {dayTasks.length > 2 && (
-                            <div className="text-xs text-gray-400 px-1">+{dayTasks.length - 2} autre{dayTasks.length - 2 > 1 ? 's' : ''}</div>
+                          {dayTasks.length > 3 && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setViewMode('day');
+                                setCurrentDate(day);
+                              }}
+                              className="w-full text-left text-[10px] px-1.5 py-0.5 text-gray-400 hover:text-sabc-red font-medium transition-colors"
+                            >
+                              +{dayTasks.length - 3} autre{dayTasks.length - 3 > 1 ? 's' : ''}
+                            </button>
                           )}
                         </div>
                       </>
@@ -1481,75 +1918,263 @@ export default function CalendarPage() {
                 );
               })}
             </div>
-          </Card>
+          </div>
         )}
 
-        {/* Day view */}
-        {viewMode === 'day' && (
-          <Card className="p-5">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-semibold text-gray-900 dark:text-white">
-                {toDateStr(currentDate) === todayStr ? "Aujourd'hui" : toDateStr(currentDate)}
-              </h3>
-              <Button size="sm" onClick={() => { setSelectedDate(toDateStr(currentDate)); setIsCreateOpen(true); }}>
+        {/* ════════════════════════════════════════════════════════════════════ */}
+        {/* VUE SEMAINE                                                         */}
+        {/* ════════════════════════════════════════════════════════════════════ */}
+        {!isLoading && viewMode === 'week' && (
+          <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 overflow-hidden shadow-sm">
+            {/* En-têtes */}
+            <div className="grid grid-cols-7 border-b border-gray-100 dark:border-gray-800 bg-gray-50/80 dark:bg-gray-800/50">
+              {getWeekDays(currentDate).map((day, i) => {
+                // ✅ FIX
+                const dateStr = toLocalDateStr(day);
+                const isToday = dateStr === todayStr;
+                return (
+                  <div key={i} className="py-3 text-center">
+                    <p className={`text-[10px] font-bold uppercase tracking-widest ${isToday ? 'text-sabc-red' : 'text-gray-400'}`}>
+                      {DAYS_FR[i]}
+                    </p>
+                    <div className={`inline-flex items-center justify-center w-8 h-8 mx-auto mt-1 rounded-full text-sm font-bold transition-colors ${
+                      isToday ? 'bg-sabc-red text-white' : 'text-gray-700 dark:text-gray-200'
+                    }`}>
+                      {day.getDate()}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Corps */}
+            <div className="grid grid-cols-7 divide-x divide-gray-50 dark:divide-gray-800 min-h-[200px]">
+              {getWeekDays(currentDate).map((day, i) => {
+                // ✅ FIX
+                const dateStr  = toLocalDateStr(day);
+                const dayTasks = getTasksForDate(dateStr);
+                const isToday  = dateStr === todayStr;
+                return (
+                  <div
+                    key={i}
+                    onClick={() => openCreate(dateStr)}
+                    className={`p-2 min-h-[160px] cursor-pointer transition-colors group ${
+                      isToday ? 'bg-red-50/30 dark:bg-red-900/10' : 'hover:bg-gray-50 dark:hover:bg-gray-800/30'
+                    }`}
+                  >
+                    <div className="space-y-1">
+                      {dayTasks.map((t) => (
+                        <button
+                          key={t.id}
+                          onClick={(e) => { e.stopPropagation(); openDetail(t); }}
+                          className={`w-full text-left rounded-lg px-2 py-1.5 border-l-2 transition-all hover:scale-[1.02] hover:shadow-sm ${CATEGORY_COLORS[t.category]}`}
+                        >
+                          <p className="text-[10px] opacity-70 font-mono">{formatTime(t.start_time)}</p>
+                          <p className="text-xs font-semibold leading-tight mt-0.5 line-clamp-2">{t.title}</p>
+                        </button>
+                      ))}
+                      {dayTasks.length === 0 && (
+                        <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center h-12 text-gray-300 dark:text-gray-600">
+                          <Plus size={14} />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* ════════════════════════════════════════════════════════════════════ */}
+        {/* VUE JOUR                                                            */}
+        {/* ════════════════════════════════════════════════════════════════════ */}
+        {!isLoading && viewMode === 'day' && (
+          <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 overflow-hidden shadow-sm">
+            {/* Header jour */}
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 dark:border-gray-800 bg-gray-50/80 dark:bg-gray-800/50">
+              <div>
+                {/* ✅ FIX : utilise toLocalDateStr */}
+                <p className="text-xs font-bold text-gray-400 uppercase tracking-widest capitalize">
+                  {DAYS_FULL[localDate(toLocalDateStr(currentDate)).getDay() === 0 ? 6 : localDate(toLocalDateStr(currentDate)).getDay() - 1]}
+                </p>
+                <p className={`text-2xl font-black ${toLocalDateStr(currentDate) === todayStr ? 'text-sabc-red' : 'text-gray-900 dark:text-white'}`}>
+                  {currentDate.getDate()} {MONTHS_FR[currentDate.getMonth()]} {currentDate.getFullYear()}
+                </p>
+              </div>
+              <Button size="sm" onClick={() => openCreate(toLocalDateStr(currentDate))}>
                 <Plus size={14} /> Ajouter
               </Button>
             </div>
+
+            {/* Liste tâches */}
             {(() => {
-              const dayTasks = getTasksForDate(toDateStr(currentDate));
-              if (dayTasks.length === 0) return <EmptyState icon={<Calendar size={24} />} title="Aucune tâche ce jour" />;
+              // ✅ FIX
+              const dateStr  = toLocalDateStr(currentDate);
+              const dayTasks = getTasksForDate(dateStr);
+
+              if (dayTasks.length === 0) {
+                return (
+                  <div className="flex flex-col items-center justify-center py-16 text-gray-300 dark:text-gray-600 space-y-3">
+                    <Calendar size={36} strokeWidth={1.5} />
+                    <p className="text-sm font-medium">Aucune tâche ce jour</p>
+                    <button
+                      onClick={() => openCreate(dateStr)}
+                      className="text-xs text-sabc-red font-semibold hover:underline"
+                    >
+                      + Créer une tâche
+                    </button>
+                  </div>
+                );
+              }
+
               return (
-                <div className="space-y-3">
-                  {dayTasks.sort((a, b) => a.start_time.localeCompare(b.start_time)).map((t) => (
-                    <div key={t.id} className="flex items-start gap-3 p-3 rounded-xl bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer transition-colors" onClick={() => setSelectedTask(t)}>
-                      <div className="text-xs text-gray-500 font-mono w-16 flex-shrink-0 mt-0.5">
-                        {formatTime(t.start_time)}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{t.title}</p>
-                        <div className="flex gap-1.5 mt-1">
-                          <Badge className={`text-xs ${CATEGORY_COLORS[t.category]}`}>{t.category}</Badge>
+                <div className="divide-y divide-gray-50 dark:divide-gray-800">
+                  {dayTasks.map((t) => {
+                    const duration  = formatDuration(t.start_time, t.end_time);
+                    const statusCfg = STATUS_CONFIG[t.status] || STATUS_CONFIG['À faire'];
+                    return (
+                      <button
+                        key={t.id}
+                        onClick={() => openDetail(t)}
+                        className="w-full flex items-stretch gap-4 px-5 py-4 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors text-left group"
+                      >
+                        {/* Heure + durée */}
+                        <div className="w-16 flex-shrink-0 text-right">
+                          <p className="text-sm font-bold text-gray-700 dark:text-gray-300">{formatTime(t.start_time)}</p>
+                          <p className="text-xs text-gray-400">{formatTime(t.end_time)}</p>
+                          {duration && <p className="text-[10px] text-gray-300 dark:text-gray-600 mt-0.5">{duration}</p>}
                         </div>
-                      </div>
-                    </div>
-                  ))}
+
+                        {/* Barre colorée */}
+                        <div className={`w-1 flex-shrink-0 rounded-full self-stretch ${CATEGORY_COLORS[t.category]?.split(' ')[0] || 'bg-gray-300'}`} />
+
+                        {/* Contenu */}
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-bold text-gray-900 dark:text-white group-hover:text-sabc-red transition-colors truncate">
+                            {t.title}
+                          </p>
+                          <div className="flex items-center gap-2 mt-1 flex-wrap">
+                            <span className={`inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-md ${statusCfg.bg} ${statusCfg.color}`}>
+                              {statusCfg.icon} {statusCfg.label}
+                            </span>
+                            <span className="text-[10px] text-gray-400">{t.category}</span>
+                            {t.domain && <span className="text-[10px] text-gray-400">{t.domain}</span>}
+                          </div>
+                          {t.description && (
+                            <p className="text-xs text-gray-400 mt-1 line-clamp-1">{t.description}</p>
+                          )}
+                        </div>
+
+                        {/* Chevron */}
+                        <div className="flex-shrink-0 self-center text-gray-300 group-hover:text-gray-500 dark:group-hover:text-gray-400 transition-colors">
+                          <ChevronRight size={16} />
+                        </div>
+                      </button>
+                    );
+                  })}
                 </div>
               );
             })()}
-          </Card>
+          </div>
         )}
       </div>
 
-      {/* Create task modal — size="2xl" for 2-column TaskForm */}
-      <Modal isOpen={isCreateOpen} onClose={() => { setIsCreateOpen(false); setSelectedDate(null); }} title="Nouvelle tâche" size="2xl">
+      {/* ── Modal : créer une tâche ────────────────────────────────────────────── */}
+      <Modal
+        isOpen={isCreateOpen}
+        onClose={() => { setIsCreateOpen(false); setSelectedDate(null); }}
+        title="Nouvelle tâche"
+        size="2xl"
+      >
         <TaskForm
           task={selectedDate ? { task_date: selectedDate } as TaskResponse : undefined}
-          onSuccess={(t) => { setIsCreateOpen(false); setTasks((prev) => [...prev, t]); }}
-          onCancel={() => setIsCreateOpen(false)}
+          onSuccess={(t) => {
+            setIsCreateOpen(false);
+            setSelectedDate(null);
+            // ✅ Ajout direct dans le state local sans re-fetch complet
+            setTasks((prev) => {
+              const exists = prev.find((x) => x.id === t.id);
+              return exists ? prev.map((x) => x.id === t.id ? t : x) : [t, ...prev];
+            });
+          }}
+          onCancel={() => { setIsCreateOpen(false); setSelectedDate(null); }}
         />
       </Modal>
 
-      {/* Task detail modal */}
-      <Modal isOpen={!!selectedTask} onClose={() => setSelectedTask(null)} title="Détails de la tâche" size="md">
-        {selectedTask && (
-          <div className="space-y-3">
-            <h3 className="text-lg font-bold text-gray-900 dark:text-white">{selectedTask.title}</h3>
-            <div className="flex flex-wrap gap-2">
-              <Badge className={CATEGORY_COLORS[selectedTask.category]}>{selectedTask.category}</Badge>
-              <Badge className="bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300">{selectedTask.domain}</Badge>
+      {/* ── Modal : modifier une tâche ─────────────────────────────────────────── */}
+      {editTask && (
+        <Modal isOpen onClose={() => setEditTask(null)} title="Modifier la tâche" size="2xl">
+          <TaskForm
+            task={editTask}
+            onSuccess={(updated) => {
+              setTasks((prev) => prev.map((t) => t.id === updated.id ? updated : t));
+              setEditTask(null);
+              setDetailTask(updated);
+            }}
+            onCancel={() => setEditTask(null)}
+          />
+        </Modal>
+      )}
+
+      {/* ── Modal : détail d'une tâche ─────────────────────────────────────────── */}
+      {detailTask && !editTask && (
+        <TaskDetailModal
+          task={detailTask}
+          onClose={() => setDetailTask(null)}
+          onEdit={() => { setEditTask(detailTask); setDetailTask(null); }}
+          onDelete={() => setDeleteTarget(detailTask)}
+          onCommentOpen={() => setCommentTask(detailTask)}
+        />
+      )}
+
+      {/* ── Modal : commenter ──────────────────────────────────────────────────── */}
+      {commentTask && (
+        <CommentModal
+          task={commentTask}
+          onClose={() => setCommentTask(null)}
+          onSaved={() => { fetchTasks(); setCommentTask(null); }}
+        />
+      )}
+
+      {/* ── Modal : confirmer suppression ──────────────────────────────────────── */}
+      {deleteTarget && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" onClick={() => setDeleteTarget(null)}>
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
+          <div
+            className="relative w-full max-w-sm bg-white dark:bg-gray-900 rounded-2xl shadow-2xl p-6 space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
+                <Trash2 size={18} className="text-red-500" />
+              </div>
+              <div>
+                <p className="font-bold text-gray-900 dark:text-white text-sm">Supprimer cette tâche ?</p>
+                <p className="text-xs text-gray-500 mt-0.5 line-clamp-1">{deleteTarget.title}</p>
+              </div>
             </div>
-            {selectedTask.description && (
-              <p className="text-sm text-gray-600 dark:text-gray-400 p-3 bg-gray-50 dark:bg-gray-800 rounded-xl">{selectedTask.description}</p>
-            )}
-            <div className="text-sm text-gray-500 space-y-1">
-              <p>📅 {selectedTask.task_date}</p>
-              <p>🕐 {formatTime(selectedTask.start_time)} – {formatTime(selectedTask.end_time)}</p>
-              {selectedTask.reminder && <p>🔔 Rappel : {selectedTask.reminder}</p>}
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              Cette action est irréversible. La tâche et ses commentaires seront définitivement supprimés.
+            </p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setDeleteTarget(null)}
+                className="flex-1 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 text-sm font-semibold text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+              >
+                Annuler
+              </button>
+              <button
+                onClick={handleDeleteConfirm}
+                disabled={deleting}
+                className="flex-1 py-2.5 rounded-xl bg-red-500 hover:bg-red-600 text-white text-sm font-semibold disabled:opacity-60 transition-colors"
+              >
+                {deleting ? 'Suppression...' : 'Supprimer'}
+              </button>
             </div>
-            <Button variant="ghost" onClick={() => setSelectedTask(null)} className="w-full">Fermer</Button>
           </div>
-        )}
-      </Modal>
+        </div>
+      )}
     </DashboardLayout>
   );
 }
@@ -3091,151 +3716,6 @@ export function TaskStatusBadge({ status }: TaskStatusBadgeProps) {
 
 
 ================================================================================
-FICHIER: D:\5GI\STAGE BRASSERIES\WakAgenda\wakagenda\components\layout\Sidebar.tsx
-================================================================================
-
-'use client';
-
-import { cn } from '@/lib/utils';
-import { useAuth } from '@/hooks/useAuth';
-import { resolveMediaUrl } from '@/lib/mediaUrl';
-import Link from 'next/link';
-import { usePathname } from 'next/navigation';
-import Image from 'next/image';
-import {
-  LayoutDashboard,
-  CheckSquare,
-  Calendar,
-  Bell,
-  FileText,
-  LogOut,
-  ChevronLeft,
-  ChevronRight,
-  User,
-} from 'lucide-react';
-import { useState } from 'react';
-import { useNotifications } from '@/hooks/useNotifications';
-import { useRouter } from 'next/navigation';
-
-const navItems = [
-  { href: '/dashboard',      label: 'Dashboard',      icon: LayoutDashboard },
-  { href: '/tasks',          label: 'Tâches',          icon: CheckSquare },
-  { href: '/calendar',       label: 'Calendrier',      icon: Calendar },
-  { href: '/notifications',  label: 'Notifications',   icon: Bell, badge: true },
-  { href: '/reports',        label: 'Rapports',        icon: FileText },
-];
-
-export function Sidebar() {
-  const { user, logout } = useAuth();
-  const pathname = usePathname();
-  const { unreadCount } = useNotifications();
-  const [collapsed, setCollapsed] = useState(false);
-  const router = useRouter();
-
-  const avatarUrl = resolveMediaUrl(user?.profile_picture_url);
-
-  return (
-    <aside
-      className={cn(
-        'flex flex-col h-screen sticky top-0 bg-white dark:bg-gray-950',
-        'border-r border-gray-100 dark:border-gray-800 transition-all duration-300 z-30',
-        collapsed ? 'w-16' : 'w-64'
-      )}
-    >
-      {/* Logo */}
-      <div className="flex items-center gap-3 px-4 py-5 border-b border-gray-100 dark:border-gray-800">
-        <div className="flex-shrink-0 w-20 h-20 relative">
-          <Image src="/images/logo.png" alt="WakAgenda" fill className="object-contain" />
-        </div>
-        {!collapsed && (
-          <div className="overflow-hidden">
-            <p className="font-bold text-sabc-red text-sm leading-tight">WakAgenda</p>
-            <p className="text-xs text-gray-400 truncate">SABC – DSI</p>
-          </div>
-        )}
-        <button
-          onClick={() => setCollapsed(!collapsed)}
-          className={cn(
-            'ml-auto p-1 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors',
-            collapsed && 'ml-0 mx-auto'
-          )}
-        >
-          {collapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
-        </button>
-      </div>
-
-      {/* Nav */}
-      <nav className="flex-1 py-4 px-2 space-y-1 overflow-y-auto">
-        {navItems.map(({ href, label, icon: Icon, badge }) => {
-          const isActive = pathname === href || pathname.startsWith(href + '/');
-          return (
-            <Link
-              key={href}
-              href={href}
-              className={cn(
-                'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 group relative',
-                isActive
-                  ? 'bg-sabc-red text-white shadow-md shadow-sabc-red/20'
-                  : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-white'
-              )}
-              title={collapsed ? label : undefined}
-            >
-              <Icon size={18} className="flex-shrink-0" />
-              {!collapsed && <span className="truncate">{label}</span>}
-              {badge && unreadCount > 0 && (
-                <span
-                  className={cn(
-                    'ml-auto flex-shrink-0 text-xs font-bold rounded-full px-1.5 py-0.5 min-w-[20px] text-center',
-                    isActive ? 'bg-white text-sabc-red' : 'bg-sabc-red text-white',
-                    collapsed && 'absolute -top-1 -right-1 ml-0'
-                  )}
-                >
-                  {unreadCount > 99 ? '99+' : unreadCount}
-                </span>
-              )}
-            </Link>
-          );
-        })}
-      </nav>
-
-      {/* User footer */}
-      <div className="border-t border-gray-100 dark:border-gray-800 p-3 space-y-1">
-        <Link
-          href="/profile"
-          className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-white transition-all duration-200"
-          title={collapsed ? 'Profil' : undefined}
-        >
-          {avatarUrl ? (
-            <Image
-              src={avatarUrl}
-              alt={user?.first_name ?? 'Profil'}
-              width={20}
-              height={20}
-              className="rounded-full flex-shrink-0 w-5 h-5 object-cover"
-              unoptimized
-            />
-          ) : (
-            <User size={18} className="flex-shrink-0" />
-          )}
-          {!collapsed && (
-            <span className="truncate">{user?.first_name} {user?.last_name}</span>
-          )}
-        </Link>
-        <button
-          onClick={() => router.push('/auth')}
-          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-gray-600 dark:text-gray-400 hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-600 transition-all duration-200"
-          title={collapsed ? 'Déconnexion' : undefined}
-        >
-          <LogOut size={18} className="flex-shrink-0" />
-          {!collapsed && <span>Déconnexion</span>}
-        </button>
-      </div>
-    </aside>
-  );
-}
-
-
-================================================================================
 FICHIER: D:\5GI\STAGE BRASSERIES\WakAgenda\wakagenda\components\layout\Header.tsx
 ================================================================================
 
@@ -3283,6 +3763,7 @@ import { Sidebar } from './Sidebar';
 import { Header } from './Header';
 import { TabBar } from './TabBar';
 import { TabEditorArea } from './TabEditorArea';
+import { OnboardingTour, TourRelaunchButton } from '../features/OnBoardingTour';
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -3292,12 +3773,20 @@ interface DashboardLayoutProps {
 export function DashboardLayout({ children, title }: DashboardLayoutProps) {
   return (
     <div className="flex h-screen bg-gray-50 dark:bg-gray-950">
+      {/* Sidebar (desktop) + Bottom Nav (mobile) */}
       <Sidebar />
+
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         <Header title={title} />
         <TabBar />
         <TabEditorArea>{children}</TabEditorArea>
       </div>
+
+      {/* Onboarding tour — shown once to new users */}
+      <OnboardingTour />
+
+      {/* Floating button to relaunch the tour */}
+      <TourRelaunchButton />
     </div>
   );
 }
@@ -3400,6 +3889,354 @@ export function TabEditorArea({ children }: TabEditorAreaProps) {
 
 
 ================================================================================
+FICHIER: D:\5GI\STAGE BRASSERIES\WakAgenda\wakagenda\components\layout\Sidebar.tsx
+================================================================================
+
+'use client';
+
+import { cn } from '@/lib/utils';
+import { useAuth } from '@/hooks/useAuth';
+import { resolveMediaUrl } from '@/lib/mediaUrl';
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
+import Image from 'next/image';
+import {
+  LayoutDashboard,
+  CheckSquare,
+  Calendar,
+  Bell,
+  FileText,
+  LogOut,
+  ChevronLeft,
+  ChevronRight,
+  User,
+} from 'lucide-react';
+import { useState } from 'react';
+import { useNotifications } from '@/hooks/useNotifications';
+import { useRouter } from 'next/navigation';
+
+const navItems = [
+  { href: '/dashboard',      label: 'Dashboard',      icon: LayoutDashboard },
+  { href: '/tasks',          label: 'Tâches',          icon: CheckSquare },
+  { href: '/calendar',       label: 'Calendrier',      icon: Calendar },
+  { href: '/notifications',  label: 'Notifications',   icon: Bell, badge: true },
+  { href: '/reports',        label: 'Rapports',        icon: FileText },
+];
+
+export function Sidebar() {
+  const { user, logout } = useAuth();
+  const pathname = usePathname();
+  const { unreadCount } = useNotifications();
+  const [collapsed, setCollapsed] = useState(false);
+  const router = useRouter();
+
+  const avatarUrl = resolveMediaUrl(user?.profile_picture_url);
+
+  return (
+    <>
+      {/* ── DESKTOP SIDEBAR (hidden on mobile) ─────────────────────────── */}
+      <aside
+        className={cn(
+          'hidden md:flex flex-col h-screen sticky top-0 bg-white dark:bg-gray-950',
+          'border-r border-gray-100 dark:border-gray-800 transition-all duration-300 z-30',
+          collapsed ? 'w-16' : 'w-64'
+        )}
+      >
+        {/* Logo */}
+        <div className="flex items-center gap-3 px-4 py-5 border-b border-gray-100 dark:border-gray-800">
+          <div className="flex-shrink-0 w-20 h-20 relative">
+            <Image src="/images/logo.png" alt="WakAgenda" fill className="object-contain" />
+          </div>
+          {!collapsed && (
+            <div className="overflow-hidden">
+              <p className="font-bold text-sabc-red text-sm leading-tight">WakAgenda</p>
+              <p className="text-xs text-gray-400 truncate">SABC – DSI</p>
+            </div>
+          )}
+          <button
+            onClick={() => setCollapsed(!collapsed)}
+            className={cn(
+              'ml-auto p-1 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors',
+              collapsed && 'ml-0 mx-auto'
+            )}
+          >
+            {collapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
+          </button>
+        </div>
+
+        {/* Nav */}
+        <nav className="flex-1 py-4 px-2 space-y-1 overflow-y-auto">
+          {navItems.map(({ href, label, icon: Icon, badge }) => {
+            const isActive = pathname === href || pathname.startsWith(href + '/');
+            return (
+              <Link
+                key={href}
+                href={href}
+                className={cn(
+                  'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 group relative',
+                  isActive
+                    ? 'bg-sabc-red text-white shadow-md shadow-sabc-red/20'
+                    : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-white'
+                )}
+                title={collapsed ? label : undefined}
+              >
+                <Icon size={18} className="flex-shrink-0" />
+                {!collapsed && <span className="truncate">{label}</span>}
+                {badge && unreadCount > 0 && (
+                  <span
+                    className={cn(
+                      'ml-auto flex-shrink-0 text-xs font-bold rounded-full px-1.5 py-0.5 min-w-[20px] text-center',
+                      isActive ? 'bg-white text-sabc-red' : 'bg-sabc-red text-white',
+                      collapsed && 'absolute -top-1 -right-1 ml-0'
+                    )}
+                  >
+                    {unreadCount > 99 ? '99+' : unreadCount}
+                  </span>
+                )}
+              </Link>
+            );
+          })}
+        </nav>
+
+        {/* User footer */}
+        <div className="border-t border-gray-100 dark:border-gray-800 p-3 space-y-1">
+          <Link
+            href="/profile"
+            className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-white transition-all duration-200"
+            title={collapsed ? 'Profil' : undefined}
+          >
+            {avatarUrl ? (
+              <Image
+                src={avatarUrl}
+                alt={user?.first_name ?? 'Profil'}
+                width={20}
+                height={20}
+                className="rounded-full flex-shrink-0 w-5 h-5 object-cover"
+                unoptimized
+              />
+            ) : (
+              <User size={18} className="flex-shrink-0" />
+            )}
+            {!collapsed && (
+              <span className="truncate">{user?.first_name} {user?.last_name}</span>
+            )}
+          </Link>
+          <button
+            onClick={() => router.push('/auth')}
+            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-gray-600 dark:text-gray-400 hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-600 transition-all duration-200"
+            title={collapsed ? 'Déconnexion' : undefined}
+          >
+            <LogOut size={18} className="flex-shrink-0" />
+            {!collapsed && <span>Déconnexion</span>}
+          </button>
+        </div>
+      </aside>
+
+      {/* ── MOBILE BOTTOM NAVBAR (visible only on small screens) ────────── */}
+      <MobileBottomNav
+        pathname={pathname}
+        unreadCount={unreadCount}
+        user={user}
+        avatarUrl={avatarUrl}
+        onLogout={() => router.push('/auth')}
+      />
+    </>
+  );
+}
+
+// ── Mobile Bottom Navigation Bar ─────────────────────────────────────────────
+
+interface MobileBottomNavProps {
+  pathname: string;
+  unreadCount: number;
+  user: { first_name: string; last_name: string } | null;
+  avatarUrl: string | null;
+  onLogout: () => void;
+}
+
+function MobileBottomNav({ pathname, unreadCount, user, avatarUrl, onLogout }: MobileBottomNavProps) {
+  const [profileOpen, setProfileOpen] = useState(false);
+
+  const bottomItems = [
+    { href: '/dashboard',     label: 'Accueil',  icon: LayoutDashboard },
+    { href: '/tasks',         label: 'Tâches',   icon: CheckSquare },
+    { href: '/calendar',      label: 'Calendrier', icon: Calendar },
+    { href: '/notifications', label: 'Notifs',   icon: Bell, badge: true },
+    { href: '/reports',       label: 'Rapports', icon: FileText },
+  ];
+
+  return (
+    <>
+      {/* Profile drawer overlay */}
+      {profileOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-black/30 backdrop-blur-sm md:hidden"
+          onClick={() => setProfileOpen(false)}
+        />
+      )}
+
+      {/* Profile slide-up drawer */}
+      <div
+        className={cn(
+          'fixed bottom-0 left-0 right-0 z-50 bg-white dark:bg-gray-900 rounded-t-3xl shadow-2xl md:hidden',
+          'border-t border-gray-100 dark:border-gray-800 transition-transform duration-300',
+          profileOpen ? 'translate-y-0' : 'translate-y-full'
+        )}
+      >
+        {/* Drag handle */}
+        <div className="flex justify-center pt-3 pb-1">
+          <div className="w-10 h-1 rounded-full bg-gray-200 dark:bg-gray-700" />
+        </div>
+
+        <div className="px-6 py-4 space-y-4">
+          {/* User info */}
+          <div className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-2xl">
+            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-sabc-red to-sabc-orange flex items-center justify-center overflow-hidden flex-shrink-0">
+              {avatarUrl ? (
+                <img src={avatarUrl} alt="avatar" className="w-full h-full object-cover" />
+              ) : (
+                <span className="text-lg font-bold text-white">
+                  {user?.first_name?.[0]}{user?.last_name?.[0]}
+                </span>
+              )}
+            </div>
+            <div>
+              <p className="font-bold text-gray-900 dark:text-white text-sm">{user?.first_name} {user?.last_name}</p>
+              <p className="text-xs text-gray-400">Stagiaire SABC</p>
+            </div>
+          </div>
+
+          {/* Profile link */}
+          <Link
+            href="/profile"
+            onClick={() => setProfileOpen(false)}
+            className="flex items-center gap-3 w-full p-3.5 rounded-xl bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-300 text-sm font-semibold hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+          >
+            <User size={18} className="text-sabc-red" />
+            Mon profil
+          </Link>
+
+          {/* Logout */}
+          <button
+            onClick={() => { setProfileOpen(false); onLogout(); }}
+            className="flex items-center gap-3 w-full p-3.5 rounded-xl bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-sm font-semibold hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors"
+          >
+            <LogOut size={18} />
+            Déconnexion
+          </button>
+
+          {/* Safe area spacer */}
+          <div className="h-2" />
+        </div>
+      </div>
+
+      {/* Bottom Nav Bar */}
+      <nav
+        className={cn(
+          'fixed bottom-0 left-0 right-0 z-40 md:hidden',
+          'bg-white/95 dark:bg-gray-950/95 backdrop-blur-xl',
+          'border-t border-gray-100 dark:border-gray-800',
+          'shadow-[0_-4px_24px_rgba(0,0,0,0.08)]'
+        )}
+        style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
+      >
+        <div className="flex items-stretch h-16">
+          {/* Nav items */}
+          {bottomItems.map(({ href, label, icon: Icon, badge }) => {
+            const isActive = pathname === href || pathname.startsWith(href + '/');
+            return (
+              <Link
+                key={href}
+                href={href}
+                className={cn(
+                  'relative flex-1 flex flex-col items-center justify-center gap-0.5 transition-all duration-200',
+                  isActive ? 'text-sabc-red' : 'text-gray-400 dark:text-gray-500'
+                )}
+              >
+                {/* Active indicator pill */}
+                {isActive && (
+                  <span className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-sabc-red rounded-full" />
+                )}
+
+                {/* Icon container */}
+                <span
+                  className={cn(
+                    'relative flex items-center justify-center w-9 h-8 rounded-xl transition-all duration-200',
+                    isActive
+                      ? 'bg-sabc-red/10 scale-110'
+                      : 'scale-100'
+                  )}
+                >
+                  <Icon size={isActive ? 20 : 18} strokeWidth={isActive ? 2.5 : 1.8} />
+
+                  {/* Badge */}
+                  {badge && unreadCount > 0 && (
+                    <span className="absolute -top-1 -right-1 min-w-[16px] h-4 bg-sabc-red text-white text-[9px] font-bold rounded-full flex items-center justify-center px-0.5 leading-none">
+                      {unreadCount > 9 ? '9+' : unreadCount}
+                    </span>
+                  )}
+                </span>
+
+                {/* Label */}
+                <span
+                  className={cn(
+                    'text-[10px] font-medium leading-none transition-all duration-200',
+                    isActive ? 'opacity-100 font-semibold' : 'opacity-60'
+                  )}
+                >
+                  {label}
+                </span>
+              </Link>
+            );
+          })}
+
+          {/* Profile button */}
+          <button
+            onClick={() => setProfileOpen(true)}
+            className={cn(
+              'relative flex-1 flex flex-col items-center justify-center gap-0.5 transition-all duration-200',
+              pathname === '/profile' ? 'text-sabc-red' : 'text-gray-400 dark:text-gray-500'
+            )}
+          >
+            {pathname === '/profile' && (
+              <span className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-sabc-red rounded-full" />
+            )}
+            <span
+              className={cn(
+                'relative flex items-center justify-center w-9 h-8 rounded-xl transition-all duration-200',
+                pathname === '/profile' ? 'bg-sabc-red/10 scale-110' : 'scale-100'
+              )}
+            >
+              {avatarUrl ? (
+                <img
+                  src={avatarUrl}
+                  alt="avatar"
+                  className="w-6 h-6 rounded-full object-cover ring-2 ring-sabc-red/30"
+                />
+              ) : (
+                <User size={pathname === '/profile' ? 20 : 18} strokeWidth={pathname === '/profile' ? 2.5 : 1.8} />
+              )}
+            </span>
+            <span
+              className={cn(
+                'text-[10px] font-medium leading-none transition-all duration-200',
+                pathname === '/profile' ? 'opacity-100 font-semibold' : 'opacity-60'
+              )}
+            >
+              Profil
+            </span>
+          </button>
+        </div>
+      </nav>
+
+      {/* Spacer so content isn't hidden behind bottom nav on mobile */}
+      <div className="h-16 md:hidden" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }} />
+    </>
+  );
+}
+
+
+================================================================================
 FICHIER: D:\5GI\STAGE BRASSERIES\WakAgenda\wakagenda\components\features\TaskCard.tsx
 ================================================================================
 
@@ -3481,205 +4318,6 @@ export function TaskCard({ task, onEdit, onDelete, compact }: TaskCardProps) {
         )}
       </div>
     </Card>
-  );
-}
-
-
-================================================================================
-FICHIER: D:\5GI\STAGE BRASSERIES\WakAgenda\wakagenda\components\features\TaskForm.tsx
-================================================================================
-
-'use client';
-
-import { useState } from 'react';
-import { Input, Select, Textarea } from '@/components/ui/Input';
-import { Button } from '@/components/ui/Button';
-import { DomainSelect } from '@/components/features/DomainSelect';
-import { taskService } from '@/services/taskService';
-import type { TaskCreate, TaskResponse, TaskUpdate } from '@/types';
-import { EVENT_CATEGORIES, TASK_STATUSES, REMINDER_DELAYS } from '@/lib/utils';
-import { CalendarDays, AlignLeft, Tag } from 'lucide-react';
-
-interface TaskFormProps {
-  task?: TaskResponse;
-  onSuccess: (task: TaskResponse) => void;
-  onCancel: () => void;
-}
-
-export function TaskForm({ task, onSuccess, onCancel }: TaskFormProps) {
-  const isEdit = !!task;
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState('');
-
-  const [form, setForm] = useState({
-    title: task?.title || '',
-    task_date: task?.task_date || new Date().toISOString().split('T')[0],
-    start_time: task?.start_time?.slice(0, 5) || '08:00',
-    end_time: task?.end_time?.slice(0, 5) || '09:00',
-    category: task?.category || 'Autre',
-    domain: task?.domain || '',  // domain NAME (e.g. "Technique"), not UUID
-    status: task?.status || 'À faire',
-    reminder: task?.reminder || '',
-    notification_enabled: task?.notification_enabled ?? true,
-    description: task?.description || '',
-  });
-
-  const set = (field: string, value: string | boolean) =>
-    setForm((prev) => ({ ...prev, [field]: value }));
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-    setIsLoading(true);
-
-    try {
-      const payload = {
-        ...form,
-        start_time: `${form.start_time}:00`,
-        end_time: `${form.end_time}:00`,
-        reminder: form.reminder || null,
-        description: form.description || null,
-        domain: form.domain || undefined,
-      };
-
-      let result: TaskResponse;
-      if (isEdit) {
-        result = await taskService.updateTask(task.id, payload as TaskUpdate);
-      } else {
-        result = await taskService.createTask(payload as TaskCreate);
-      }
-      onSuccess(result);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Une erreur est survenue');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  return (
-    <form onSubmit={handleSubmit}>
-      {error && (
-        <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 rounded-xl text-sm mb-4">
-          {error}
-        </div>
-      )}
-
-      {/* Two-column grid on large screens */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-6 gap-y-4">
-
-        {/* Title — full width */}
-        <div className="lg:col-span-2">
-          <Input
-            label="Titre de la tâche"
-            value={form.title}
-            onChange={(e) => set('title', e.target.value)}
-            required
-            placeholder="Ex: Réunion d'équipe, Développement API..."
-          />
-        </div>
-
-        {/* ── LEFT COLUMN: Classification ── */}
-        <div className="space-y-3">
-          <p className="text-xs font-bold uppercase tracking-widest text-gray-400 dark:text-gray-500 flex items-center gap-1.5">
-            <Tag size={11} /> Classification
-          </p>
-          <Select
-            label="Catégorie"
-            value={form.category}
-            onChange={(e) => set('category', e.target.value)}
-            options={EVENT_CATEGORIES.map((c) => ({ value: c, label: c }))}
-          />
-          <DomainSelect
-            label="Domaine"
-            value={form.domain}
-            onChange={(v) => set('domain', v)}
-            required
-          />
-          <Select
-            label="Statut"
-            value={form.status}
-            onChange={(e) => set('status', e.target.value)}
-            options={TASK_STATUSES.map((s) => ({ value: s, label: s }))}
-          />
-        </div>
-
-        {/* ── RIGHT COLUMN: Planning ── */}
-        <div className="space-y-3">
-          <p className="text-xs font-bold uppercase tracking-widest text-gray-400 dark:text-gray-500 flex items-center gap-1.5">
-            <CalendarDays size={11} /> Planning
-          </p>
-          <Input
-            label="Date"
-            type="date"
-            value={form.task_date}
-            onChange={(e) => set('task_date', e.target.value)}
-            required
-          />
-          <div className="grid grid-cols-2 gap-3">
-            <Input
-              label="Heure de début"
-              type="time"
-              value={form.start_time}
-              onChange={(e) => set('start_time', e.target.value)}
-              required
-            />
-            <Input
-              label="Heure de fin"
-              type="time"
-              value={form.end_time}
-              onChange={(e) => set('end_time', e.target.value)}
-              required
-            />
-          </div>
-          <Select
-            label="Rappel"
-            value={form.reminder}
-            onChange={(e) => set('reminder', e.target.value)}
-            options={[{ value: '', label: 'Aucun rappel' }, ...REMINDER_DELAYS.map((r) => ({ value: r, label: r }))]}
-          />
-        </div>
-
-        {/* Description — full width */}
-        <div className="lg:col-span-2 space-y-2">
-          <p className="text-xs font-bold uppercase tracking-widest text-gray-400 dark:text-gray-500 flex items-center gap-1.5">
-            <AlignLeft size={11} /> Description
-          </p>
-          <Textarea
-            value={form.description}
-            onChange={(e) => set('description', e.target.value)}
-            rows={3}
-            placeholder="Notes, détails complémentaires... (optionnel)"
-          />
-        </div>
-
-        {/* Notification toggle — full width */}
-        <div className="lg:col-span-2">
-          <label className="flex items-center gap-3 p-3 rounded-xl border border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
-            <input
-              type="checkbox"
-              checked={form.notification_enabled}
-              onChange={(e) => set('notification_enabled', e.target.checked)}
-              className="w-4 h-4 accent-sabc-red rounded"
-            />
-            <div>
-              <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">Activer les notifications</p>
-              <p className="text-xs text-gray-400">Recevoir un rappel avant la tâche</p>
-            </div>
-          </label>
-        </div>
-
-        {/* Actions — full width */}
-        <div className="lg:col-span-2 flex gap-3 pt-2 border-t border-gray-100 dark:border-gray-800">
-          <Button type="button" variant="ghost" onClick={onCancel} className="flex-1">
-            Annuler
-          </Button>
-          <Button type="submit" isLoading={isLoading} className="flex-1">
-            {isEdit ? 'Enregistrer les modifications' : 'Créer la tâche'}
-          </Button>
-        </div>
-
-      </div>
-    </form>
   );
 }
 
@@ -4347,114 +4985,6 @@ export function TaskCommentEditor({ taskId, taskTitle, onCommented }: TaskCommen
 
 
 ================================================================================
-FICHIER: D:\5GI\STAGE BRASSERIES\WakAgenda\wakagenda\components\features\DomainSelect.tsx
-================================================================================
-
-'use client';
-
-import { useState } from 'react';
-import { useDomainList } from '@/hooks/useDomains';
-import { DomainCreateModal } from './DomainCreateModal';
-import type { DomainResponse } from '@/types';
-import { cn } from '@/lib/utils';
-
-interface DomainSelectProps {
-  value: string;           // domain name (e.g. "Technique")
-  onChange: (domainName: string) => void;
-  label?: string;
-  required?: boolean;
-}
-
-export function DomainSelect({ value, onChange, label, required }: DomainSelectProps) {
-  const { domains, isLoading, refetch } = useDomainList();
-  const [isCreateOpen, setIsCreateOpen] = useState(false);
-
-  const systemDomains = domains
-    .filter((d) => d.is_system)
-    .sort((a, b) => a.name.localeCompare(b.name));
-
-  const customDomains = domains
-    .filter((d) => !d.is_system)
-    .sort((a, b) => a.name.localeCompare(b.name));
-
-  const handleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const val = e.target.value;
-    if (val === '__create__') {
-      setIsCreateOpen(true);
-    } else {
-      onChange(val); // val is now the domain NAME
-    }
-  };
-
-  const handleCreated = (domain: DomainResponse) => {
-    refetch();
-    onChange(domain.name); // use name, not id
-  };
-
-  const selectId = label?.toLowerCase().replace(/\s+/g, '-') ?? 'domain-select';
-
-  return (
-    <>
-      <div className="flex flex-col gap-1.5">
-        {label && (
-          <label htmlFor={selectId} className="text-sm font-medium text-gray-700 dark:text-gray-300">
-            {label}
-            {required && <span className="text-sabc-red ml-1">*</span>}
-          </label>
-        )}
-        <select
-          id={selectId}
-          value={value}
-          onChange={handleChange}
-          disabled={isLoading}
-          className={cn(
-            'w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900',
-            'text-gray-900 dark:text-gray-100',
-            'px-4 py-2.5 text-sm transition-all duration-200',
-            'focus:outline-none focus:ring-2 focus:ring-sabc-red focus:border-transparent',
-            'disabled:opacity-50 disabled:cursor-not-allowed'
-          )}
-          required={required}
-        >
-          {isLoading ? (
-            <option value="" disabled>Chargement...</option>
-          ) : (
-            <>
-              <option value="" disabled>Sélectionner un domaine</option>
-
-              {systemDomains.length > 0 && (
-                <optgroup label="Domaines système">
-                  {systemDomains.map((d) => (
-                    <option key={d.id} value={d.name}>{d.name}</option>
-                  ))}
-                </optgroup>
-              )}
-
-              {customDomains.length > 0 && (
-                <optgroup label="Domaines personnalisés">
-                  {customDomains.map((d) => (
-                    <option key={d.id} value={d.name}>{d.name}</option>
-                  ))}
-                </optgroup>
-              )}
-
-              <option value="__create__">＋ Créer un nouveau domaine</option>
-            </>
-          )}
-        </select>
-      </div>
-
-      <DomainCreateModal
-        isOpen={isCreateOpen}
-        onClose={() => setIsCreateOpen(false)}
-        onCreated={handleCreated}
-      />
-    </>
-  );
-}
-
-
-================================================================================
 FICHIER: D:\5GI\STAGE BRASSERIES\WakAgenda\wakagenda\components\features\DomainCreateModal.tsx
 ================================================================================
 
@@ -4553,6 +5083,1013 @@ export function DomainCreateModal({ isOpen, onClose, onCreated }: DomainCreateMo
         </div>
       </div>
     </Modal>
+  );
+}
+
+
+================================================================================
+FICHIER: D:\5GI\STAGE BRASSERIES\WakAgenda\wakagenda\components\features\DomainSelect.tsx
+================================================================================
+
+'use client';
+
+import { useState } from 'react';
+import { useDomainList } from '@/hooks/useDomains';
+import { DomainCreateModal } from './DomainCreateModal';
+import type { DomainResponse } from '@/types';
+import { cn } from '@/lib/utils';
+
+interface DomainSelectProps {
+  value: string;            // domain name (e.g. "Technique")
+  onChange: (domainName: string) => void;
+  label?: string;
+  required?: boolean;
+}
+
+export function DomainSelect({ value, onChange, label, required }: DomainSelectProps) {
+  const { domains, isLoading, refetch } = useDomainList();
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
+
+  const systemDomains = domains
+    .filter((d) => d.is_system)
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  const customDomains = domains
+    .filter((d) => !d.is_system)
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  const handleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const val = e.target.value;
+    if (val === '__create__') {
+      setIsCreateOpen(true);
+    } else {
+      onChange(val); // val = domain name (string)
+    }
+  };
+
+  const handleCreated = (domain: DomainResponse) => {
+    refetch(); // force re-fetch pour inclure le nouveau domaine
+    onChange(domain.name);
+  };
+
+  const selectId = label?.toLowerCase().replace(/\s+/g, '-') ?? 'domain-select';
+
+  return (
+    <>
+      <div className="flex flex-col gap-1.5">
+        {label && (
+          <label htmlFor={selectId} className="text-sm font-medium text-gray-700 dark:text-gray-300">
+            {label}
+            {required && <span className="text-sabc-red ml-1">*</span>}
+          </label>
+        )}
+        <select
+          id={selectId}
+          value={value}
+          onChange={handleChange}
+          disabled={isLoading}
+          className={cn(
+            'w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900',
+            'text-gray-900 dark:text-gray-100',
+            'px-4 py-2.5 text-sm transition-all duration-200',
+            'focus:outline-none focus:ring-2 focus:ring-sabc-red focus:border-transparent',
+            'disabled:opacity-50 disabled:cursor-not-allowed'
+          )}
+          required={required}
+        >
+          {isLoading ? (
+            <option value="" disabled>Chargement des domaines...</option>
+          ) : (
+            <>
+              <option value="" disabled>Sélectionner un domaine</option>
+
+              {systemDomains.length > 0 && (
+                <optgroup label="Domaines système">
+                  {systemDomains.map((d) => (
+                    <option key={d.id} value={d.name}>
+                      {d.name}
+                    </option>
+                  ))}
+                </optgroup>
+              )}
+
+              {customDomains.length > 0 && (
+                <optgroup label="Domaines personnalisés">
+                  {customDomains.map((d) => (
+                    <option key={d.id} value={d.name}>
+                      {d.name}
+                    </option>
+                  ))}
+                </optgroup>
+              )}
+
+              <option value="__create__">＋ Créer un nouveau domaine</option>
+            </>
+          )}
+        </select>
+
+        {/* Affiche le domaine sélectionné s'il n'est pas dans la liste (cas hérité) */}
+        {!isLoading && value && value !== '__create__' && !domains.find((d) => d.name === value) && (
+          <p className="text-xs text-amber-500 mt-1">
+            Domaine actuel : <strong>{value}</strong> (non trouvé dans la liste — il sera conservé)
+          </p>
+        )}
+      </div>
+
+      <DomainCreateModal
+        isOpen={isCreateOpen}
+        onClose={() => setIsCreateOpen(false)}
+        onCreated={handleCreated}
+      />
+    </>
+  );
+}
+
+
+================================================================================
+FICHIER: D:\5GI\STAGE BRASSERIES\WakAgenda\wakagenda\components\features\TaskForm.tsx
+================================================================================
+
+'use client';
+
+import { useState } from 'react';
+import { Input, Select, Textarea } from '@/components/ui/Input';
+import { Button } from '@/components/ui/Button';
+import { DomainSelect } from '@/components/features/DomainSelect';
+import { taskService } from '@/services/taskService';
+import type { TaskCreate, TaskResponse, TaskUpdate } from '@/types';
+import { EVENT_CATEGORIES, TASK_STATUSES, REMINDER_DELAYS } from '@/lib/utils';
+import { CalendarDays, AlignLeft, Tag } from 'lucide-react';
+
+interface TaskFormProps {
+  task?: TaskResponse;
+  onSuccess: (task: TaskResponse) => void;
+  onCancel: () => void;
+}
+
+export function TaskForm({ task, onSuccess, onCancel }: TaskFormProps) {
+  const isEdit = !!task;
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const [form, setForm] = useState({
+    title: task?.title || '',
+    task_date: task?.task_date || new Date().toISOString().split('T')[0],
+    start_time: task?.start_time?.slice(0, 5) || '08:00',
+    end_time: task?.end_time?.slice(0, 5) || '09:00',
+    category: task?.category || 'Autre',
+    domain: task?.domain || '',  // domain NAME (e.g. "Technique"), not UUID
+    status: task?.status || 'À faire',
+    reminder: task?.reminder || '',
+    notification_enabled: task?.notification_enabled ?? true,
+    description: task?.description || '',
+  });
+
+  const set = (field: string, value: string | boolean) =>
+    setForm((prev) => ({ ...prev, [field]: value }));
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setIsLoading(true);
+
+    try {
+      const payload = {
+        ...form,
+        start_time: `${form.start_time}:00`,
+        end_time: `${form.end_time}:00`,
+        reminder: form.reminder || null,
+        description: form.description || null,
+        domain: form.domain || undefined,
+      };
+
+      let result: TaskResponse;
+      if (isEdit) {
+        result = await taskService.updateTask(task.id, payload as TaskUpdate);
+      } else {
+        result = await taskService.createTask(payload as TaskCreate);
+      }
+      onSuccess(result);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Une erreur est survenue');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit}>
+      {error && (
+        <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 rounded-xl text-sm mb-4">
+          {error}
+        </div>
+      )}
+
+      {/* Two-column grid on large screens */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-6 gap-y-1">
+
+        {/* Title — full width */}
+        <div className="lg:col-span-2">
+          <Input
+            label="Titre de la tâche"
+            value={form.title}
+            onChange={(e) => set('title', e.target.value)}
+            required
+            placeholder="Ex: Réunion d'équipe, Développement API..."
+          />
+        </div>
+
+        {/* ── LEFT COLUMN: Classification ── */}
+        <div className="space-y-3">
+          <p className="text-xs font-bold uppercase tracking-widest text-gray-400 dark:text-gray-500 flex items-center gap-1.5">
+            <Tag size={11} /> Classification
+          </p>
+          <Select
+            label="Catégorie"
+            value={form.category}
+            onChange={(e) => set('category', e.target.value)}
+            options={EVENT_CATEGORIES.map((c) => ({ value: c, label: c }))}
+          />
+          <DomainSelect
+            label="Domaine"
+            value={form.domain}
+            onChange={(v) => set('domain', v)}
+            required
+          />
+          <Select
+            label="Statut"
+            value={form.status}
+            onChange={(e) => set('status', e.target.value)}
+            options={TASK_STATUSES.map((s) => ({ value: s, label: s }))}
+          />
+        </div>
+
+        {/* ── RIGHT COLUMN: Planning ── */}
+        <div className="space-y-3">
+          <p className="text-xs font-bold uppercase tracking-widest text-gray-400 dark:text-gray-500 flex items-center gap-1.5">
+            <CalendarDays size={11} /> Planning
+          </p>
+          <Input
+            label="Date"
+            type="date"
+            value={form.task_date}
+            onChange={(e) => set('task_date', e.target.value)}
+            required
+          />
+          <div className="grid grid-cols-2 gap-3">
+            <Input
+              label="Heure de début"
+              type="time"
+              value={form.start_time}
+              onChange={(e) => set('start_time', e.target.value)}
+              required
+            />
+            <Input
+              label="Heure de fin"
+              type="time"
+              value={form.end_time}
+              onChange={(e) => set('end_time', e.target.value)}
+              required
+            />
+          </div>
+          <Select
+            label="Rappel"
+            value={form.reminder}
+            onChange={(e) => set('reminder', e.target.value)}
+            options={[{ value: '', label: 'Aucun rappel' }, ...REMINDER_DELAYS.map((r) => ({ value: r, label: r }))]}
+          />
+        </div>
+
+        {/* Description — full width */}
+        <div className="lg:col-span-2 space-y-2">
+          <p className="text-xs font-bold uppercase tracking-widest text-gray-400 dark:text-gray-500 flex items-center gap-1.5">
+            <AlignLeft size={11} /> Description
+          </p>
+          <Textarea
+            value={form.description}
+            onChange={(e) => set('description', e.target.value)}
+            rows={1}
+            placeholder="Notes, détails complémentaires... (optionnel)"
+          />
+        </div>
+
+        {/* Notification toggle — full width */}
+        <div className="lg:col-span-2">
+          <label className="flex items-center gap-3 p-3 rounded-xl border border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+            <input
+              type="checkbox"
+              checked={form.notification_enabled}
+              onChange={(e) => set('notification_enabled', e.target.checked)}
+              className="w-4 h-4 accent-sabc-red rounded"
+            />
+            <div>
+              <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">Activer les notifications</p>
+              <p className="text-xs text-gray-400">Recevoir un rappel avant la tâche</p>
+            </div>
+          </label>
+        </div>
+
+        {/* Actions — full width */}
+        <div className="lg:col-span-2 flex gap-3 pt-0 border-t border-gray-100 dark:border-gray-800">
+          <Button type="button" variant="ghost" onClick={onCancel} className="flex-1">
+            Annuler
+          </Button>
+          <Button type="submit" isLoading={isLoading} className="flex-1">
+            {isEdit ? 'Enregistrer les modifications' : 'Créer la tâche'}
+          </Button>
+        </div>
+
+      </div>
+    </form>
+  );
+}
+
+
+================================================================================
+FICHIER: D:\5GI\STAGE BRASSERIES\WakAgenda\wakagenda\components\features\OnBoardingTour.tsx
+================================================================================
+
+'use client';
+
+import { useEffect, useState, useCallback, useRef } from 'react';
+import { useRouter, usePathname } from 'next/navigation';
+import {
+  LayoutDashboard, CheckSquare, Calendar, Bell, FileText,
+  User, Plus, ArrowRight, ArrowLeft, X, Sparkles,
+  CheckCircle2, MousePointer, Zap, SkipForward,
+  RefreshCw, Clock, FileDown, MessageSquare,
+} from 'lucide-react';
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+interface TourStep {
+  id: string;
+  title: string;
+  description: string;
+  icon: React.ReactNode;
+  targetSelector?: string;
+  position?: 'top' | 'bottom' | 'left' | 'right' | 'center';
+  action?: string;
+  spotlight?: boolean;
+  // which route must be active for this step's spotlight/target to exist
+  requiredPath?: string;
+}
+
+// ─── Steps (all red/amber palette, all lucide icons) ─────────────────────────
+
+const TOUR_STEPS: TourStep[] = [
+  {
+    id: 'welcome',
+    title: 'Bienvenue sur WakAgenda !',
+    description: "Votre agenda intelligent de stage SABC. En quelques étapes rapides, vous serez 100% opérationnel. Prêt ? C'est parti !",
+    icon: <Sparkles size={20} />,
+    position: 'center',
+  },
+  {
+    id: 'dashboard-stats',
+    title: 'Tableau de bord',
+    description: "Votre cockpit quotidien. Les 4 compteurs résument instantanément l'état de vos activités : total, du jour, en retard et terminées.",
+    icon: <LayoutDashboard size={20} />,
+    targetSelector: '[data-tour="dashboard-stats"]',
+    position: 'bottom',
+    action: 'Les chiffres se mettent à jour en temps réel',
+    spotlight: true,
+    requiredPath: '/dashboard',
+  },
+  {
+    id: 'create-task',
+    title: 'Créer une tâche',
+    description: "Ce bouton est votre meilleur ami ! Titre, date, horaires, catégorie, domaine, rappel… Tout se remplit en 30 secondes.",
+    icon: <Plus size={20} />,
+    targetSelector: '[data-tour="create-task-btn"]',
+    position: 'bottom',
+    action: 'Cliquez pour planifier votre première activité',
+    spotlight: true,
+    requiredPath: '/dashboard',
+  },
+  {
+    id: 'tasks-page',
+    title: 'Page Tâches',
+    description: "Toutes vos activités au même endroit. Filtrez par catégorie, domaine ou statut. Survolez une carte pour faire apparaître les actions Modifier / Supprimer.",
+    icon: <CheckSquare size={20} />,
+    targetSelector: '[href="/tasks"]',
+    position: 'right',
+    action: 'Naviguez vers "Tâches" dans le menu',
+    spotlight: true,
+  },
+  {
+    id: 'task-status',
+    title: "Cycle de vie d'une tâche",
+    description: "Une tâche passe par : À faire → En cours → Terminé. Passée la date sans action, elle bascule automatiquement en « En retard » ou « Manquée ».",
+    icon: <RefreshCw size={20} />,
+    position: 'center',
+    action: 'Mettez à jour vos statuts chaque jour !',
+  },
+  {
+    id: 'calendar',
+    title: 'Vue Calendrier',
+    description: "Mois, Semaine ou Jour — choisissez votre perspective. Cliquez sur n'importe quelle case pour créer une tâche à cette date précise.",
+    icon: <Calendar size={20} />,
+    targetSelector: '[href="/calendar"]',
+    position: 'right',
+    action: 'Explorez les vues Semaine et Jour',
+    spotlight: true,
+  },
+  {
+    id: 'notifications',
+    title: 'Rappels & Notifications',
+    description: "Activez un rappel sur chaque tâche (15 min, 30 min, 1h ou la veille). La cloche affiche un badge rouge dès qu'une notification est en attente.",
+    icon: <Bell size={20} />,
+    targetSelector: '[href="/notifications"]',
+    position: 'right',
+    action: 'Consultez vos notifications non lues ici',
+    spotlight: true,
+  },
+  {
+    id: 'reports',
+    title: 'Rapport PDF en 1 clic',
+    description: "Générez votre rapport d'activité professionnel instantanément. Page de garde SABC, statistiques, liste chronologique complète — parfait pour votre encadrant !",
+    icon: <FileDown size={20} />,
+    targetSelector: '[href="/reports"]',
+    position: 'right',
+    action: 'Générez un rapport dès que vous avez des tâches',
+    spotlight: true,
+  },
+  {
+    id: 'comments',
+    title: 'Éditeur de compte-rendu',
+    description: "Quand une tâche est « Terminé », une icône 💬 apparaît sur la carte. Elle ouvre un éditeur riche : texte formaté, titres, listes, images redimensionnables.",
+    icon: <MessageSquare size={20} />,
+    position: 'center',
+    action: 'Marquez une tâche Terminée pour débloquer l\'éditeur',
+  },
+  {
+    id: 'profile',
+    title: 'Mon Profil',
+    description: "Mettez à jour vos informations (département, encadrant, date de début), changez votre photo de profil, ou gérez votre compte depuis cette section.",
+    icon: <User size={20} />,
+    targetSelector: '[href="/profile"]',
+    position: 'right',
+    action: 'Complétez votre profil pour personnaliser vos rapports',
+    spotlight: true,
+  },
+  {
+    id: 'done',
+    title: 'Vous maîtrisez WakAgenda !',
+    description: "Félicitations ! Vous connaissez tout ce qu'il faut. Créez votre première tâche et organisez votre stage comme un pro. Bonne chance !",
+    icon: <Zap size={20} />,
+    position: 'center',
+  },
+];
+
+const STORAGE_KEY = 'wakagenda_tour_v2';
+
+// ─── Confetti ─────────────────────────────────────────────────────────────────
+
+function ConfettiBurst() {
+  const ref = useRef<HTMLCanvasElement>(null);
+
+  useEffect(() => {
+    const canvas = ref.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+
+    // Red & amber palette only
+    const COLORS = ['#C8102E', '#a30d24', '#E8600A', '#f59e0b', '#fcd34d', '#fff'];
+
+    type P = {
+      x: number; y: number; vx: number; vy: number;
+      color: string; w: number; h: number;
+      rot: number; rs: number; life: number; circle: boolean;
+    };
+
+    const ps: P[] = Array.from({ length: 140 }, () => ({
+      x: canvas.width * 0.25 + Math.random() * canvas.width * 0.5,
+      y: canvas.height * 0.38,
+      vx: (Math.random() - 0.5) * 13,
+      vy: Math.random() * -11 - 1,
+      color: COLORS[Math.floor(Math.random() * COLORS.length)],
+      w: Math.random() * 9 + 4,
+      h: Math.random() * 5 + 3,
+      rot: Math.random() * Math.PI * 2,
+      rs: (Math.random() - 0.5) * 0.18,
+      life: 1,
+      circle: Math.random() > 0.55,
+    }));
+
+    let id: number;
+    const tick = () => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      let alive = false;
+      for (const p of ps) {
+        p.x += p.vx; p.y += p.vy;
+        p.vy += 0.32; p.vx *= 0.99;
+        p.rot += p.rs; p.life -= 0.009;
+        if (p.life > 0 && p.y < canvas.height + 20) {
+          alive = true;
+          ctx.save();
+          ctx.globalAlpha = Math.max(0, p.life);
+          ctx.translate(p.x, p.y);
+          ctx.rotate(p.rot);
+          ctx.fillStyle = p.color;
+          if (p.circle) { ctx.beginPath(); ctx.arc(0, 0, p.w / 2, 0, Math.PI * 2); ctx.fill(); }
+          else ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+          ctx.restore();
+        }
+      }
+      if (alive) id = requestAnimationFrame(tick);
+    };
+    id = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(id);
+  }, []);
+
+  return <canvas ref={ref} className="fixed inset-0 pointer-events-none" style={{ zIndex: 97 }} />;
+}
+
+// ─── Spotlight ────────────────────────────────────────────────────────────────
+
+function Spotlight({ sel }: { sel?: string }) {
+  const [rect, setRect] = useState<DOMRect | null>(null);
+
+  useEffect(() => {
+    if (!sel) { setRect(null); return; }
+    const go = () => { const el = document.querySelector(sel); if (el) setRect(el.getBoundingClientRect()); };
+    go(); const t = setTimeout(go, 280);
+    window.addEventListener('resize', go);
+    return () => { clearTimeout(t); window.removeEventListener('resize', go); };
+  }, [sel]);
+
+  if (!sel || !rect) return null;
+
+  const P = 10;
+  const x = rect.left - P, y = rect.top - P;
+  const w = rect.width + P * 2, h = rect.height + P * 2;
+
+  return (
+    <svg className="fixed inset-0 pointer-events-none" style={{ zIndex: 98, width: '100vw', height: '100vh' }}>
+      <defs>
+        <mask id="ot-mask">
+          <rect width="100%" height="100%" fill="white" />
+          <rect x={x} y={y} width={w} height={h} rx="13" fill="black" />
+        </mask>
+        <filter id="ot-glow" x="-30%" y="-30%" width="160%" height="160%">
+          <feGaussianBlur stdDeviation="3.5" result="b" />
+          <feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge>
+        </filter>
+      </defs>
+      <rect width="100%" height="100%" fill="rgba(0,0,0,0.62)" mask="url(#ot-mask)" />
+      <rect x={x} y={y} width={w} height={h} rx="13"
+        fill="none" stroke="#C8102E" strokeWidth="2.5"
+        strokeDasharray="7 4" filter="url(#ot-glow)"
+        style={{ animation: 'ot-dash .9s linear infinite' }}
+      />
+      {([[x,y],[x+w,y],[x,y+h],[x+w,y+h]] as [number,number][]).map(([cx,cy],i)=>(
+        <circle key={i} cx={cx} cy={cy} r="4.5" fill="#C8102E"
+          style={{ animation: `ot-pulse 1.5s ease-in-out ${i*.17}s infinite` }}
+        />
+      ))}
+    </svg>
+  );
+}
+
+// ─── Card ─────────────────────────────────────────────────────────────────────
+
+interface CardProps {
+  step: TourStep;
+  stepIndex: number;
+  total: number;
+  onNext: () => void;
+  onPrev: () => void;
+  onSkip: () => void;
+}
+
+function Card({ step, stepIndex, total, onNext, onPrev, onSkip }: CardProps) {
+  const isFirst = stepIndex === 0;
+  const isLast  = stepIndex === total - 1;
+  const pct     = Math.round(((stepIndex + 1) / total) * 100);
+  const [k, setK] = useState(0);
+  useEffect(() => { setK(p => p + 1); }, [stepIndex]);
+
+  return (
+    <div className="ot-card">
+      {/* Animated top bar */}
+      <div className="ot-bar" style={{ width: `${pct}%` }} />
+
+      {/* Close */}
+      <button className="ot-x" onClick={onSkip} aria-label="Passer">
+        <X size={13} />
+      </button>
+
+      {/* Icon + title row */}
+      <div className="ot-head">
+        <div className="ot-icon-wrap" key={`ic-${k}`}>
+          {step.icon}
+        </div>
+        <div className="ot-head-text">
+          <span className="ot-label">{stepIndex + 1} / {total}</span>
+          <h3 className="ot-title" key={`ti-${k}`}>{step.title}</h3>
+        </div>
+      </div>
+
+      {/* Description */}
+      <p className="ot-desc" key={`de-${k}`}>{step.description}</p>
+
+      {/* Hint */}
+      {step.action && (
+        <div className="ot-hint" key={`hi-${k}`}>
+          <MousePointer size={12} className="ot-hint-ico" />
+          <span>{step.action}</span>
+        </div>
+      )}
+
+      {/* Progress */}
+      <div className="ot-prog-row">
+        <div className="ot-prog-track">
+          <div className="ot-prog-fill" style={{ width: `${pct}%` }} />
+        </div>
+        <span className="ot-pct">{pct}%</span>
+      </div>
+
+      {/* Dots */}
+      <div className="ot-dots">
+        {Array.from({ length: total }).map((_, i) => (
+          <span key={i} className={`ot-dot${i === stepIndex ? ' ot-dot-on' : i < stepIndex ? ' ot-dot-done' : ''}`} />
+        ))}
+      </div>
+
+      {/* Nav */}
+      <div className="ot-nav">
+        {isFirst ? (
+          <button className="ot-ghost" onClick={onSkip}><SkipForward size={13} /> Passer</button>
+        ) : (
+          <button className="ot-ghost" onClick={onPrev}><ArrowLeft size={13} /> Retour</button>
+        )}
+        <button className="ot-next" onClick={onNext}>
+          {isLast
+            ? <><CheckCircle2 size={14} /> C&apos;est parti !</>
+            : <>Suivant <ArrowRight size={14} /></>}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ─── Positioned card ──────────────────────────────────────────────────────────
+
+function PositionedCard(props: CardProps & { isCenter: boolean }) {
+  const { step, isCenter } = props;
+  const ref = useRef<HTMLDivElement>(null);
+  const [css, setCss] = useState<React.CSSProperties>(
+    isCenter ? { top: '50%', left: '50%', transform: 'translate(-50%,-50%)' } : {}
+  );
+
+  useEffect(() => {
+    const mobile = window.innerWidth < 768;
+    if (isCenter) { setCss({ top: '50%', left: '50%', transform: 'translate(-50%,-50%)' }); return; }
+    if (mobile)   { setCss({ bottom: 86, left: 12, right: 12, width: 'auto', maxWidth: 'none' }); return; }
+    if (!step.targetSelector) { setCss({ bottom: 80, left: '50%', transform: 'translateX(-50%)' }); return; }
+
+    const place = () => {
+      const el = document.querySelector(step.targetSelector!);
+      if (!el || !ref.current) return;
+      const r  = el.getBoundingClientRect();
+      const tw = ref.current.offsetWidth  || 376;
+      const th = ref.current.offsetHeight || 340;
+      const G  = 18, vw = window.innerWidth, vh = window.innerHeight;
+      let top = G, left = G;
+      switch (step.position) {
+        case 'right':
+          top  = Math.max(G, Math.min(r.top + r.height / 2 - th / 2, vh - th - G));
+          left = Math.min(r.right + 14, vw - tw - G);
+          break;
+        case 'left':
+          top  = Math.max(G, Math.min(r.top + r.height / 2 - th / 2, vh - th - G));
+          left = Math.max(G, r.left - tw - 14);
+          break;
+        case 'bottom':
+          top  = Math.min(r.bottom + 14, vh - th - G);
+          left = Math.max(G, Math.min(r.left + r.width / 2 - tw / 2, vw - tw - G));
+          break;
+        default:
+          top  = Math.max(G, r.top - th - 14);
+          left = Math.max(G, Math.min(r.left + r.width / 2 - tw / 2, vw - tw - G));
+      }
+      setCss({ top, left });
+    };
+    place();
+    const t = setTimeout(place, 240);
+    window.addEventListener('resize', place);
+    return () => { clearTimeout(t); window.removeEventListener('resize', place); };
+  }, [step, isCenter]);
+
+  return (
+    <div
+      ref={ref}
+      key={step.id}
+      className="ot-wrap"
+      style={{ ...css, position: 'fixed', zIndex: 99 }}
+    >
+      <Card {...props} />
+    </div>
+  );
+}
+
+// ─── Main export ──────────────────────────────────────────────────────────────
+
+export function OnboardingTour() {
+  const [active,   setActive]   = useState(false);
+  const [step,     setStep]     = useState(0);
+  const [mounted,  setMounted]  = useState(false);
+  const [confetti, setConfetti] = useState(false);
+  const router   = useRouter();
+  const pathname = usePathname();
+
+  useEffect(() => {
+    setMounted(true);
+    if (!localStorage.getItem(STORAGE_KEY)) {
+      const t = setTimeout(() => setActive(true), 900);
+      return () => clearTimeout(t);
+    }
+  }, []);
+
+  const finish = useCallback(() => {
+    setActive(false);
+    localStorage.setItem(STORAGE_KEY, '1');
+  }, []);
+
+  const next = useCallback(() => {
+    const last = step === TOUR_STEPS.length - 1;
+    if (last) {
+      setConfetti(true);
+      setTimeout(() => setConfetti(false), 4500);
+      setTimeout(finish, 700);
+      return;
+    }
+
+    const nextStep    = TOUR_STEPS[step + 1];
+    const reqPath     = nextStep.requiredPath;
+
+    // If next step needs a specific page and we're not there, navigate without
+    // restarting the tour — just advance the step index
+    if (reqPath && pathname !== reqPath) {
+      setStep(s => s + 1);
+      router.push(reqPath);
+    } else {
+      setStep(s => s + 1);
+    }
+  }, [step, pathname, router, finish]);
+
+  const prev = useCallback(() => {
+    if (step > 0) setStep(s => s - 1);
+  }, [step]);
+
+  if (!mounted || !active) return null;
+
+  const current  = TOUR_STEPS[step];
+  const isCenter = current.position === 'center' || !current.targetSelector;
+
+  // If this step requires a specific page but we're not there yet,
+  // still show the card but skip the spotlight until the page loads
+  const canSpotlight = current.spotlight &&
+    (!current.requiredPath || pathname === current.requiredPath);
+
+  return (
+    <>
+      <style>{`
+        @keyframes ot-in    { from { opacity:0; transform:translateY(18px) scale(.93); } to { opacity:1; transform:none; } }
+        @keyframes ot-dim   { from { opacity:0; } to { opacity:1; } }
+        @keyframes ot-txt   { from { opacity:0; transform:translateX(10px); } to { opacity:1; transform:none; } }
+        @keyframes ot-icon  { 0%,100% { transform:scale(1) rotate(0deg); } 50% { transform:scale(1.12) rotate(-6deg); } }
+        @keyframes ot-bar   { from { opacity:.6; } to { opacity:1; } }
+        @keyframes ot-dash  { to { stroke-dashoffset:-24; } }
+        @keyframes ot-pulse { 0%,100%{r:4.5;opacity:1;} 50%{r:7;opacity:.35;} }
+
+        /* Overlay */
+        .ot-overlay { animation: ot-dim .22s ease both; }
+
+        /* Wrapper */
+        .ot-wrap { animation: ot-in .4s cubic-bezier(.16,1,.3,1) both; }
+
+        /* Card shell */
+        .ot-card {
+          position: relative;
+          width: min(376px, calc(100vw - 26px));
+          background: #fff;
+          border-radius: 22px;
+          overflow: hidden;
+          box-shadow:
+            0 0 0 1px rgba(0,0,0,.05),
+            0 14px 50px rgba(0,0,0,.14),
+            0 4px 12px rgba(200,16,46,.07);
+          font-family: 'DM Sans', system-ui, sans-serif;
+        }
+        @media (prefers-color-scheme: dark) {
+          .ot-card {
+            background: #0d0d14;
+            box-shadow:
+              0 0 0 1px rgba(255,255,255,.06),
+              0 14px 50px rgba(0,0,0,.55),
+              0 4px 12px rgba(200,16,46,.12);
+          }
+        }
+
+        /* Top progress bar */
+        .ot-bar {
+          height: 3.5px;
+          background: linear-gradient(90deg, #C8102E, #E8600A 60%, #f59e0b);
+          transition: width .5s cubic-bezier(.16,1,.3,1);
+          animation: ot-bar .4s ease both;
+        }
+
+        /* Close */
+        .ot-x {
+          position: absolute; top: 13px; right: 13px;
+          width: 27px; height: 27px; border-radius: 50%;
+          border: none; background: rgba(0,0,0,.055);
+          color: #9ca3af; cursor: pointer; z-index: 2;
+          display: flex; align-items: center; justify-content: center;
+          transition: all .17s;
+        }
+        .ot-x:hover { background: rgba(200,16,46,.1); color: #C8102E; transform: rotate(90deg); }
+        @media (prefers-color-scheme: dark) { .ot-x { background: rgba(255,255,255,.08); } }
+
+        /* Header */
+        .ot-head {
+          display: flex; align-items: flex-start; gap: 11px;
+          padding: 1.1rem 1.25rem .65rem;
+        }
+        .ot-icon-wrap {
+          width: 44px; height: 44px; border-radius: 14px; flex-shrink: 0;
+          background: rgba(200,16,46,.09);
+          border: 1.5px solid rgba(200,16,46,.18);
+          display: flex; align-items: center; justify-content: center;
+          color: #C8102E;
+          animation: ot-icon 3s ease-in-out 1s infinite;
+        }
+        @media (prefers-color-scheme: dark) {
+          .ot-icon-wrap {
+            background: rgba(200,16,46,.13);
+            border-color: rgba(200,16,46,.25);
+          }
+        }
+
+        .ot-head-text { flex: 1; min-width: 0; padding-right: 28px; }
+        .ot-label {
+          display: block;
+          font-size: 10px; font-weight: 700; text-transform: uppercase;
+          letter-spacing: .1em; margin-bottom: 3px;
+          color: #C8102E; opacity: .85;
+        }
+        .ot-title {
+          font-size: 15px; font-weight: 800; line-height: 1.25; margin: 0;
+          color: #0f172a;
+          animation: ot-txt .3s ease both;
+        }
+        @media (prefers-color-scheme: dark) { .ot-title { color: #f1f5f9; } }
+
+        /* Description */
+        .ot-desc {
+          font-size: 13px; color: #475569; line-height: 1.68;
+          margin: 0 0 .8rem; padding: 0 1.25rem;
+          animation: ot-txt .3s .06s ease both;
+        }
+        @media (prefers-color-scheme: dark) { .ot-desc { color: #94a3b8; } }
+
+        /* Hint */
+        .ot-hint {
+          display: flex; align-items: flex-start; gap: 7px;
+          padding: 8px 11px; border-radius: 11px; margin: 0 1.25rem .9rem;
+          background: rgba(200,16,46,.06);
+          border: 1px solid rgba(200,16,46,.15);
+          font-size: 12px; font-weight: 600; color: #C8102E;
+          animation: ot-txt .3s .1s ease both;
+        }
+        .ot-hint-ico { flex-shrink: 0; margin-top: 1px; opacity: .75; }
+
+        /* Progress row */
+        .ot-prog-row {
+          display: flex; align-items: center; gap: 8px;
+          padding: 0 1.25rem; margin-bottom: 9px;
+        }
+        .ot-prog-track {
+          flex: 1; height: 4px; border-radius: 99px;
+          background: rgba(0,0,0,.06); overflow: hidden;
+        }
+        @media (prefers-color-scheme: dark) { .ot-prog-track { background: rgba(255,255,255,.07); } }
+        .ot-prog-fill {
+          height: 100%; border-radius: 99px;
+          background: linear-gradient(90deg, #C8102E, #E8600A 55%, #f59e0b);
+          transition: width .5s cubic-bezier(.16,1,.3,1);
+        }
+        .ot-pct {
+          font-size: 11px; font-weight: 800; color: #C8102E;
+          min-width: 32px; text-align: right; letter-spacing: -.02em;
+        }
+
+        /* Dots */
+        .ot-dots {
+          display: flex; justify-content: center; gap: 5px;
+          padding: 0 1.25rem; margin-bottom: .95rem;
+        }
+        .ot-dot {
+          width: 7px; height: 7px; border-radius: 50%;
+          background: #e2e8f0;
+          transition: all .28s cubic-bezier(.16,1,.3,1);
+          flex-shrink: 0;
+        }
+        .ot-dot-on  { width: 20px; border-radius: 4px; background: #C8102E; }
+        .ot-dot-done { background: rgba(200,16,46,.3); }
+        @media (prefers-color-scheme: dark) {
+          .ot-dot { background: #334155; }
+          .ot-dot-done { background: rgba(200,16,46,.35); }
+        }
+
+        /* Nav */
+        .ot-nav {
+          display: flex; gap: 8px;
+          padding: 0 1.25rem 1.15rem;
+        }
+        .ot-ghost {
+          display: flex; align-items: center; gap: 5px;
+          padding: 9px 14px; border-radius: 12px;
+          border: 1.5px solid #e2e8f0; background: transparent;
+          color: #64748b; font-size: 12.5px; font-weight: 600;
+          font-family: inherit; cursor: pointer; transition: all .17s; white-space: nowrap;
+        }
+        .ot-ghost:hover { border-color: #C8102E; color: #C8102E; background: rgba(200,16,46,.04); }
+        @media (prefers-color-scheme: dark) {
+          .ot-ghost { border-color: #334155; color: #94a3b8; }
+          .ot-ghost:hover { border-color: #C8102E; color: #ff4d6d; background: rgba(200,16,46,.08); }
+        }
+        .ot-next {
+          flex: 1; display: flex; align-items: center; justify-content: center;
+          gap: 6px; padding: 10px 16px; border-radius: 12px; border: none;
+          background: linear-gradient(135deg, #C8102E 0%, #a30d24 100%);
+          color: #fff; font-size: 13px; font-weight: 700;
+          font-family: inherit; cursor: pointer; letter-spacing: -.01em;
+          box-shadow: 0 4px 16px rgba(200,16,46,.35);
+          transition: all .17s;
+        }
+        .ot-next:hover { transform: translateY(-1.5px); box-shadow: 0 6px 22px rgba(200,16,46,.45); }
+        .ot-next:active { transform: scale(.97); }
+      `}</style>
+
+      {confetti && <ConfettiBurst />}
+
+      {/* Dim for center steps */}
+      {isCenter && (
+        <div
+          className="ot-overlay fixed inset-0 bg-black/55 backdrop-blur-sm"
+          style={{ zIndex: 98 }}
+          onClick={finish}
+        />
+      )}
+
+      {/* Spotlight */}
+      {canSpotlight && (
+        <Spotlight sel={current.targetSelector} />
+      )}
+
+      {/* Card */}
+      <PositionedCard
+        step={current}
+        stepIndex={step}
+        total={TOUR_STEPS.length}
+        onNext={next}
+        onPrev={prev}
+        onSkip={finish}
+        isCenter={isCenter}
+      />
+    </>
+  );
+}
+
+// ─── Relaunch button ──────────────────────────────────────────────────────────
+
+export function TourRelaunchButton() {
+  const [show, setShow] = useState(false);
+  useEffect(() => { setShow(!!localStorage.getItem(STORAGE_KEY)); }, []);
+  if (!show) return null;
+
+  return (
+    <button
+      onClick={() => { localStorage.removeItem(STORAGE_KEY); window.location.reload(); }}
+      className="
+        fixed bottom-[88px] right-4 md:bottom-7 md:right-6 z-30
+        flex items-center gap-1.5 px-3.5 py-2 rounded-full
+        bg-white dark:bg-gray-900
+        border border-gray-200 dark:border-gray-700
+        text-[11px] font-bold text-gray-500 dark:text-gray-400
+        shadow-md hover:shadow-lg hover:border-sabc-red hover:text-sabc-red
+        transition-all duration-200
+      "
+    >
+      <Sparkles size={12} className="text-sabc-red" />
+      Guide
+    </button>
   );
 }
 
@@ -4798,55 +6335,93 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { domainService } from '@/services/domainService';
 import type { DomainCreate, DomainResponse } from '@/types';
 
-const CACHE_TTL = 60_000; // 60 seconds
-
+// ── Cache module-level (partagé entre toutes les instances) ────────────────
+// null = pas encore chargé / invalidé
 let cache: { data: DomainResponse[]; timestamp: number } | null = null;
+const CACHE_TTL = 60_000; // 60 secondes
 
+export function invalidateDomainCache() {
+  console.log('%c[useDomains] Cache invalidé', 'color:#f97316; font-weight:bold');
+  cache = null;
+}
+
+// ── Hook: liste de domaines ────────────────────────────────────────────────
 export function useDomainList() {
-  const [domains, setDomains] = useState<DomainResponse[]>(cache?.data ?? []);
-  const [isLoading, setIsLoading] = useState(!cache || Date.now() - cache.timestamp > CACHE_TTL);
+  const [domains, setDomains] = useState<DomainResponse[]>([]);
+  const [isLoading, setIsLoading] = useState(true); // toujours true au départ
+  const fetchedOnce = useRef(false);
 
-  const refetch = useCallback(async (force = false) => {
+  const fetchDomains = useCallback(async (force = false) => {
+    // Utilise le cache uniquement s'il est valide et qu'on ne force pas
     if (!force && cache && Date.now() - cache.timestamp < CACHE_TTL) {
+      console.log(
+        `%c[useDomains] Cache hit — ${cache.data.length} domaine(s) (âge: ${Math.round((Date.now() - cache.timestamp) / 1000)}s)`,
+        'color:#3b82f6; font-weight:bold'
+      );
       setDomains(cache.data);
       setIsLoading(false);
       return;
     }
+
+    console.log(
+      `%c[useDomains] Fetch réseau${force ? ' (forcé)' : ''}…`,
+      'color:#8B5CF6; font-weight:bold'
+    );
     setIsLoading(true);
     try {
       const data = await domainService.getDomains();
       cache = { data, timestamp: Date.now() };
       setDomains(data);
-    } catch {
-      // silently fail
+      console.log(
+        `%c[useDomains] State mis à jour — ${data.length} domaine(s)`,
+        'color:#22c55e; font-weight:bold',
+        data
+      );
+    } catch (err) {
+      console.error('%c[useDomains] ❌ Impossible de charger les domaines', 'color:#ef4444', err);
+      // On garde l'état précédent
     } finally {
       setIsLoading(false);
     }
   }, []);
 
+  // Chargement initial — toujours au premier montage
   useEffect(() => {
-    refetch();
-  }, [refetch]);
+    if (!fetchedOnce.current) {
+      fetchedOnce.current = true;
+      fetchDomains();
+    }
+  }, [fetchDomains]);
 
-  return { domains, isLoading, refetch: () => refetch(true) };
+  // refetch() = invalide le cache + force réseau
+  const refetch = useCallback(() => {
+    invalidateDomainCache();
+    fetchDomains(true);
+  }, [fetchDomains]);
+
+  return { domains, isLoading, refetch };
 }
 
+// ── Hook: créer un domaine ─────────────────────────────────────────────────
 export function useCreateDomain() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const refetchRef = useRef<(() => void) | null>(null);
 
   const create = useCallback(async (data: DomainCreate): Promise<DomainResponse | null> => {
     setIsLoading(true);
     setError(null);
     try {
       const domain = await domainService.createDomain(data);
-      // Invalidate cache
-      cache = null;
+      // Invalide le cache pour que le prochain useDomainList() refetch
+      invalidateDomainCache();
       return domain;
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Une erreur est survenue';
-      setError(msg.includes('409') || msg.toLowerCase().includes('exist') ? 'Ce domaine existe déjà' : msg);
+      const friendly =
+        msg.includes('409') || msg.toLowerCase().includes('exist')
+          ? 'Ce domaine existe déjà'
+          : msg;
+      setError(friendly);
       return null;
     } finally {
       setIsLoading(false);
@@ -4855,217 +6430,6 @@ export function useCreateDomain() {
 
   return { create, isLoading, error };
 }
-
-
-================================================================================
-FICHIER: D:\5GI\STAGE BRASSERIES\WakAgenda\wakagenda\lib\apiClient.ts
-================================================================================
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || ''; 
-
-// ─── Console logger ───────────────────────────────────────────────────────────
-
-const METHOD_COLORS: Record<string, string> = {
-  GET:    'color:#22c55e; font-weight:bold',
-  POST:   'color:#3b82f6; font-weight:bold',
-  PATCH:  'color:#f97316; font-weight:bold',
-  DELETE: 'color:#ef4444; font-weight:bold',
-};
-
-function logRequest(method: string, url: string, body?: unknown): void {
-  const style = METHOD_COLORS[method] || 'font-weight:bold';
-  console.groupCollapsed(
-    `%c[WakAgenda] %c${method}%c ${url}`,
-    'color:#C8102E; font-weight:bold',
-    style,
-    'color:inherit; font-weight:normal'
-  );
-  console.log('%cURL', 'color:#94a3b8; font-weight:bold', url);
-  if (body !== undefined) console.log('%cBody', 'color:#94a3b8; font-weight:bold', body);
-  console.groupEnd();
-}
-
-function logResponse(method: string, url: string, status: number, data: unknown, durationMs: number): void {
-  const ok = status >= 200 && status < 300;
-  const statusStyle = ok ? 'color:#22c55e; font-weight:bold' : 'color:#ef4444; font-weight:bold';
-  console.groupCollapsed(
-    `%c[WakAgenda] %c${method}%c ${url} → %c${status}%c (${durationMs}ms)`,
-    'color:#C8102E; font-weight:bold',
-    METHOD_COLORS[method] || 'font-weight:bold',
-    'color:inherit',
-    statusStyle,
-    'color:#64748b'
-  );
-  console.log('%cResponse', 'color:#94a3b8; font-weight:bold', data);
-  console.groupEnd();
-}
-
-function logError(method: string, url: string, status: number, error: unknown, durationMs: number): void {
-  console.groupCollapsed(
-    `%c[WakAgenda] %c${method}%c ${url} → %c${status} ERROR%c (${durationMs}ms)`,
-    'color:#C8102E; font-weight:bold',
-    METHOD_COLORS[method] || 'font-weight:bold',
-    'color:inherit',
-    'color:#ef4444; font-weight:bold',
-    'color:#64748b'
-  );
-  console.error('%cError', 'color:#ef4444; font-weight:bold', error);
-  console.groupEnd();
-}
-
-// ─── ApiClient ────────────────────────────────────────────────────────────────
-
-class ApiClient {
-  private baseUrl: string;
-
-  constructor(baseUrl: string) {
-    this.baseUrl = baseUrl;
-  }
-
-  private getToken(): string | null {
-    if (typeof window === 'undefined') return null;
-    return localStorage.getItem('access_token');
-  }
-
-  private getHeaders(includeAuth = true): Record<string, string> {
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-    };
-    if (includeAuth) {
-      const token = this.getToken();
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-    }
-    return headers;
-  }
-
-  async get<T>(path: string, params?: Record<string, string | number | boolean | undefined>): Promise<T> {
-    const url = new URL(`${this.baseUrl}${path}`);
-    if (params) {
-      Object.entries(params).forEach(([k, v]) => {
-        if (v !== undefined && v !== null && v !== '') url.searchParams.append(k, String(v));
-      });
-    }
-    const fullUrl = url.toString();
-    logRequest('GET', fullUrl);
-    const t0 = performance.now();
-    const res = await fetch(fullUrl, { headers: this.getHeaders() });
-    const duration = Math.round(performance.now() - t0);
-    if (!res.ok) {
-      const error = await res.json().catch(() => ({}));
-      logError('GET', fullUrl, res.status, error, duration);
-      throw new Error(error?.detail || `HTTP ${res.status}`);
-    }
-    const data = await res.json();
-    logResponse('GET', fullUrl, res.status, data, duration);
-    return data;
-  }
-
-  async post<T>(path: string, body?: unknown, includeAuth = true): Promise<T> {
-    const fullUrl = `${this.baseUrl}${path}`;
-    logRequest('POST', fullUrl, body);
-    const t0 = performance.now();
-    const res = await fetch(fullUrl, {
-      method: 'POST',
-      headers: this.getHeaders(includeAuth),
-      body: body ? JSON.stringify(body) : undefined,
-    });
-    const duration = Math.round(performance.now() - t0);
-    if (!res.ok) {
-      const error = await res.json().catch(() => ({}));
-      logError('POST', fullUrl, res.status, error, duration);
-      throw new Error(error?.detail || `HTTP ${res.status}`);
-    }
-    const data = await res.json();
-    logResponse('POST', fullUrl, res.status, data, duration);
-    return data;
-  }
-
-  async patch<T>(path: string, body?: unknown): Promise<T> {
-    const fullUrl = `${this.baseUrl}${path}`;
-    logRequest('PATCH', fullUrl, body);
-    const t0 = performance.now();
-    const res = await fetch(fullUrl, {
-      method: 'PATCH',
-      headers: this.getHeaders(),
-      body: body ? JSON.stringify(body) : undefined,
-    });
-    const duration = Math.round(performance.now() - t0);
-    if (!res.ok) {
-      const error = await res.json().catch(() => ({}));
-      logError('PATCH', fullUrl, res.status, error, duration);
-      throw new Error(error?.detail || `HTTP ${res.status}`);
-    }
-    if (res.status === 204) {
-      logResponse('PATCH', fullUrl, res.status, '(no content)', duration);
-      return {} as T;
-    }
-    const data = await res.json();
-    logResponse('PATCH', fullUrl, res.status, data, duration);
-    return data;
-  }
-
-  async delete(path: string): Promise<void> {
-    const fullUrl = `${this.baseUrl}${path}`;
-    logRequest('DELETE', fullUrl);
-    const t0 = performance.now();
-    const res = await fetch(fullUrl, {
-      method: 'DELETE',
-      headers: this.getHeaders(),
-    });
-    const duration = Math.round(performance.now() - t0);
-    if (!res.ok) {
-      const error = await res.json().catch(() => ({}));
-      logError('DELETE', fullUrl, res.status, error, duration);
-      throw new Error(error?.detail || `HTTP ${res.status}`);
-    }
-    logResponse('DELETE', fullUrl, res.status, '(no content)', duration);
-  }
-
-  async postFormData<T>(path: string, formData: FormData): Promise<T> {
-    const fullUrl = `${this.baseUrl}${path}`;
-    logRequest('POST', fullUrl, '(FormData – file upload)');
-    const token = this.getToken();
-    const headers: Record<string, string> = {};
-    if (token) headers['Authorization'] = `Bearer ${token}`;
-    const t0 = performance.now();
-    const res = await fetch(fullUrl, {
-      method: 'POST',
-      headers,
-      body: formData,
-    });
-    const duration = Math.round(performance.now() - t0);
-    if (!res.ok) {
-      const error = await res.json().catch(() => ({}));
-      logError('POST', fullUrl, res.status, error, duration);
-      throw new Error(error?.detail || `HTTP ${res.status}`);
-    }
-    const data = await res.json();
-    logResponse('POST', fullUrl, res.status, data, duration);
-    return data;
-  }
-
-  async getBlob(path: string, params?: Record<string, string | undefined>): Promise<Blob> {
-    const url = new URL(`${this.baseUrl}${path}`);
-    if (params) {
-      Object.entries(params).forEach(([k, v]) => {
-        if (v) url.searchParams.append(k, v);
-      });
-    }
-    const fullUrl = url.toString();
-    logRequest('GET', fullUrl);
-    const t0 = performance.now();
-    const res = await fetch(fullUrl, { headers: this.getHeaders() });
-    const duration = Math.round(performance.now() - t0);
-    if (!res.ok) {
-      logError('GET', fullUrl, res.status, `Blob request failed`, duration);
-      throw new Error(`HTTP ${res.status}`);
-    }
-    logResponse('GET', fullUrl, res.status, '(Blob – PDF)', duration);
-    return res.blob();
-  }
-}
-
-export const apiClient = new ApiClient(API_BASE_URL);
 
 
 ================================================================================
@@ -5160,6 +6524,228 @@ export function resolveMediaUrl(url: string | null | undefined): string | null {
   const base = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
   return `${base}${url}`;
 }
+
+
+================================================================================
+FICHIER: D:\5GI\STAGE BRASSERIES\WakAgenda\wakagenda\lib\apiClient.ts
+================================================================================
+
+// ─── Base URL ─────────────────────────────────────────────────────────────────
+// Côté client : on utilise window.location.origin pour que new URL() fonctionne
+// Côté serveur (SSR) : on utilise '' et on construit l'URL autrement
+const API_BASE_URL = '';
+
+// ─── Console logger ───────────────────────────────────────────────────────────
+
+const METHOD_COLORS: Record<string, string> = {
+  GET:    'color:#22c55e; font-weight:bold',
+  POST:   'color:#3b82f6; font-weight:bold',
+  PATCH:  'color:#f97316; font-weight:bold',
+  DELETE: 'color:#ef4444; font-weight:bold',
+};
+
+function logRequest(method: string, url: string, body?: unknown): void {
+  const style = METHOD_COLORS[method] || 'font-weight:bold';
+  console.groupCollapsed(
+    `%c[WakAgenda] %c${method}%c ${url}`,
+    'color:#C8102E; font-weight:bold',
+    style,
+    'color:inherit; font-weight:normal'
+  );
+  console.log('%cURL', 'color:#94a3b8; font-weight:bold', url);
+  if (body !== undefined) console.log('%cBody', 'color:#94a3b8; font-weight:bold', body);
+  console.groupEnd();
+}
+
+function logResponse(method: string, url: string, status: number, data: unknown, durationMs: number): void {
+  const ok = status >= 200 && status < 300;
+  const statusStyle = ok ? 'color:#22c55e; font-weight:bold' : 'color:#ef4444; font-weight:bold';
+  console.groupCollapsed(
+    `%c[WakAgenda] %c${method}%c ${url} → %c${status}%c (${durationMs}ms)`,
+    'color:#C8102E; font-weight:bold',
+    METHOD_COLORS[method] || 'font-weight:bold',
+    'color:inherit',
+    statusStyle,
+    'color:#64748b'
+  );
+  console.log('%cResponse', 'color:#94a3b8; font-weight:bold', data);
+  console.groupEnd();
+}
+
+function logError(method: string, url: string, status: number, error: unknown, durationMs: number): void {
+  console.groupCollapsed(
+    `%c[WakAgenda] %c${method}%c ${url} → %c${status} ERROR%c (${durationMs}ms)`,
+    'color:#C8102E; font-weight:bold',
+    METHOD_COLORS[method] || 'font-weight:bold',
+    'color:inherit',
+    'color:#ef4444; font-weight:bold',
+    'color:#64748b'
+  );
+  console.error('%cError', 'color:#ef4444; font-weight:bold', error);
+  console.groupEnd();
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+/**
+ * Construit une URL absolue à partir d'un path relatif.
+ * - Côté client  : window.location.origin + path  (ex: http://localhost:3000/api/v1/domains)
+ * - Côté serveur : path tel quel (fetch relatif supporté par Next.js SSR)
+ */
+function buildUrl(path: string, params?: Record<string, string | number | boolean | undefined | null>): string {
+  const base = typeof window !== 'undefined' ? window.location.origin : '';
+  const url = new URL(`${base}${path}`);
+  if (params) {
+    Object.entries(params).forEach(([k, v]) => {
+      if (v !== undefined && v !== null && v !== '') {
+        url.searchParams.append(k, String(v));
+      }
+    });
+  }
+  return url.toString();
+}
+
+// ─── ApiClient ────────────────────────────────────────────────────────────────
+
+class ApiClient {
+  private getToken(): string | null {
+    if (typeof window === 'undefined') return null;
+    return localStorage.getItem('access_token');
+  }
+
+  private getHeaders(includeAuth = true): Record<string, string> {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+    if (includeAuth) {
+      const token = this.getToken();
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+    }
+    return headers;
+  }
+
+  async get<T>(
+    path: string,
+    params?: Record<string, string | number | boolean | undefined | null>
+  ): Promise<T> {
+    const fullUrl = buildUrl(path, params as Record<string, string | number | boolean | undefined>);
+    logRequest('GET', fullUrl);
+    const t0 = performance.now();
+    const res = await fetch(fullUrl, { headers: this.getHeaders() });
+    const duration = Math.round(performance.now() - t0);
+    if (!res.ok) {
+      const error = await res.json().catch(() => ({}));
+      logError('GET', fullUrl, res.status, error, duration);
+      throw new Error(error?.detail || `HTTP ${res.status}`);
+    }
+    const data = await res.json();
+    logResponse('GET', fullUrl, res.status, data, duration);
+    return data;
+  }
+
+  async post<T>(path: string, body?: unknown, includeAuth = true): Promise<T> {
+    const fullUrl = buildUrl(path);
+    logRequest('POST', fullUrl, body);
+    const t0 = performance.now();
+    const res = await fetch(fullUrl, {
+      method: 'POST',
+      headers: this.getHeaders(includeAuth),
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    const duration = Math.round(performance.now() - t0);
+    if (!res.ok) {
+      const error = await res.json().catch(() => ({}));
+      logError('POST', fullUrl, res.status, error, duration);
+      throw new Error(error?.detail || `HTTP ${res.status}`);
+    }
+    const data = await res.json();
+    logResponse('POST', fullUrl, res.status, data, duration);
+    return data;
+  }
+
+  async patch<T>(path: string, body?: unknown): Promise<T> {
+    const fullUrl = buildUrl(path);
+    logRequest('PATCH', fullUrl, body);
+    const t0 = performance.now();
+    const res = await fetch(fullUrl, {
+      method: 'PATCH',
+      headers: this.getHeaders(),
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    const duration = Math.round(performance.now() - t0);
+    if (!res.ok) {
+      const error = await res.json().catch(() => ({}));
+      logError('PATCH', fullUrl, res.status, error, duration);
+      throw new Error(error?.detail || `HTTP ${res.status}`);
+    }
+    if (res.status === 204) {
+      logResponse('PATCH', fullUrl, res.status, '(no content)', duration);
+      return {} as T;
+    }
+    const data = await res.json();
+    logResponse('PATCH', fullUrl, res.status, data, duration);
+    return data;
+  }
+
+  async delete(path: string): Promise<void> {
+    const fullUrl = buildUrl(path);
+    logRequest('DELETE', fullUrl);
+    const t0 = performance.now();
+    const res = await fetch(fullUrl, {
+      method: 'DELETE',
+      headers: this.getHeaders(),
+    });
+    const duration = Math.round(performance.now() - t0);
+    if (!res.ok) {
+      const error = await res.json().catch(() => ({}));
+      logError('DELETE', fullUrl, res.status, error, duration);
+      throw new Error(error?.detail || `HTTP ${res.status}`);
+    }
+    logResponse('DELETE', fullUrl, res.status, '(no content)', duration);
+  }
+
+  async postFormData<T>(path: string, formData: FormData): Promise<T> {
+    const fullUrl = buildUrl(path);
+    logRequest('POST', fullUrl, '(FormData – file upload)');
+    const token = this.getToken();
+    const headers: Record<string, string> = {};
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    const t0 = performance.now();
+    const res = await fetch(fullUrl, {
+      method: 'POST',
+      headers,
+      body: formData,
+    });
+    const duration = Math.round(performance.now() - t0);
+    if (!res.ok) {
+      const error = await res.json().catch(() => ({}));
+      logError('POST', fullUrl, res.status, error, duration);
+      throw new Error(error?.detail || `HTTP ${res.status}`);
+    }
+    const data = await res.json();
+    logResponse('POST', fullUrl, res.status, data, duration);
+    return data;
+  }
+
+  async getBlob(
+    path: string,
+    params?: Record<string, string | undefined>
+  ): Promise<Blob> {
+    const fullUrl = buildUrl(path, params);
+    logRequest('GET', fullUrl);
+    const t0 = performance.now();
+    const res = await fetch(fullUrl, { headers: this.getHeaders() });
+    const duration = Math.round(performance.now() - t0);
+    if (!res.ok) {
+      logError('GET', fullUrl, res.status, 'Blob request failed', duration);
+      throw new Error(`HTTP ${res.status}`);
+    }
+    logResponse('GET', fullUrl, res.status, '(Blob – PDF)', duration);
+    return res.blob();
+  }
+}
+
+export const apiClient = new ApiClient();
 
 
 ================================================================================
@@ -5361,11 +6947,38 @@ import type { DomainCreate, DomainResponse } from '@/types';
 
 export const domainService = {
   async getDomains(): Promise<DomainResponse[]> {
-    return apiClient.get<DomainResponse[]>('/api/v1/domains');
+    console.group('%c[DomainService] GET /api/v1/domains', 'color:#8B5CF6; font-weight:bold');
+    console.log('%cRequête envoyée…', 'color:#94a3b8');
+    try {
+      const data = await apiClient.get<DomainResponse[]>('/api/v1/domains');
+      console.log(
+        `%c✅ ${data.length} domaine(s) reçu(s)`,
+        'color:#22c55e; font-weight:bold',
+        '\n',
+        data.map((d) => `  • [${d.is_system ? 'système' : 'custom'}] ${d.name} (${d.id})`).join('\n')
+      );
+      console.groupEnd();
+      return data;
+    } catch (err) {
+      console.error('%c❌ Erreur getDomains', 'color:#ef4444; font-weight:bold', err);
+      console.groupEnd();
+      throw err;
+    }
   },
 
   async createDomain(data: DomainCreate): Promise<DomainResponse> {
-    return apiClient.post<DomainResponse>('/api/v1/domains', data);
+    console.group('%c[DomainService] POST /api/v1/domains', 'color:#8B5CF6; font-weight:bold');
+    console.log('%cPayload', 'color:#94a3b8', data);
+    try {
+      const result = await apiClient.post<DomainResponse>('/api/v1/domains', data);
+      console.log('%c✅ Domaine créé', 'color:#22c55e; font-weight:bold', result);
+      console.groupEnd();
+      return result;
+    } catch (err) {
+      console.error('%c❌ Erreur createDomain', 'color:#ef4444; font-weight:bold', err);
+      console.groupEnd();
+      throw err;
+    }
   },
 };
 
@@ -5425,7 +7038,10 @@ export interface UserUpdate {
 // ─── Tasks ───────────────────────────────────────────────────────────────────
 
 export type EventCategory = 'Réunion' | 'Développement' | 'Formation' | 'Rendu' | 'Autre';
+
+// EventDomain kept only for legacy color mapping — the real domain is a free string from backend
 export type EventDomain = 'Technique' | 'Administratif' | 'Commercial' | 'Transversal';
+
 export type TaskStatus = 'À faire' | 'En cours' | 'Terminé' | 'Annulé' | 'En retard' | 'Manquée';
 export type ReminderDelay = '15 min avant' | '30 min avant' | '1 heure avant' | 'La veille';
 
@@ -5435,7 +7051,7 @@ export interface TaskCreate {
   start_time: string;
   end_time: string;
   category?: EventCategory;
-  domain?: string; // UUID from DomainResponse
+  domain?: string; // domain name (free string)
   status?: TaskStatus;
   reminder?: ReminderDelay | null;
   notification_enabled?: boolean;
@@ -5448,7 +7064,7 @@ export interface TaskUpdate {
   start_time?: string | null;
   end_time?: string | null;
   category?: EventCategory | null;
-  domain?: string | null; // UUID from DomainResponse
+  domain?: string | null; // domain name (free string)
   status?: TaskStatus | null;
   reminder?: ReminderDelay | null;
   notification_enabled?: boolean | null;
@@ -5463,7 +7079,7 @@ export interface TaskResponse {
   start_time: string;
   end_time: string;
   category: EventCategory;
-  domain: string; // UUID or legacy EventDomain string
+  domain: string; // free string from backend
   status: TaskStatus;
   reminder: ReminderDelay | null;
   notification_enabled: boolean;
@@ -5484,7 +7100,7 @@ export interface TaskStats {
 
 export interface TaskFilters {
   category?: EventCategory;
-  domain?: string;
+  domain?: string; // free string — matches any domain name from backend
   status?: TaskStatus;
   date_from?: string;
   date_to?: string;
@@ -5653,36 +7269,6 @@ const eslintConfig = defineConfig([
 
 export default eslintConfig;
 
-
-
-================================================================================
-FICHIER: D:\5GI\STAGE BRASSERIES\WakAgenda\wakagenda\next.config.ts
-================================================================================
-
-import type { NextConfig } from "next";
-
-const nextConfig: NextConfig = {
-  images: {
-    remotePatterns: [
-      { protocol: "http", hostname: "localhost" },
-      { protocol: "https", hostname: "**" },
-    ],
-  },
-  // Ajout du Proxy
-  async rewrites() {
-    // URL de ton backend (production ou dev)
-    const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || 'https://wakagenda-backend.onrender.com';
-    
-    return [
-      {
-        source: '/api/:path*',
-        destination: `${BACKEND_URL}/api/:path*`,
-      },
-    ];
-  },
-};
-
-export default nextConfig;
 
 
 ================================================================================
@@ -5873,5 +7459,35 @@ FICHIER: D:\5GI\STAGE BRASSERIES\WakAgenda\wakagenda\tailwind.config.ts
 // Voir : https://tailwindcss.com/docs/upgrade-guide
 
 export default {};
+
+
+================================================================================
+FICHIER: D:\5GI\STAGE BRASSERIES\WakAgenda\wakagenda\next.config.ts
+================================================================================
+
+import type { NextConfig } from "next";
+
+const nextConfig: NextConfig = {
+  images: {
+    remotePatterns: [
+      { protocol: "http", hostname: "localhost" },
+      { protocol: "https", hostname: "**" },
+    ],
+  },
+  // Ajout du Proxy
+  async rewrites() {
+    // URL de ton backend (production ou dev)
+    const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || 'https://wakagenda-backend.onrender.com';
+    
+    return [
+      {
+        source: '/api/:path*',
+        destination: `${BACKEND_URL}/api/:path*`,
+      },
+    ];
+  },
+};
+
+export default nextConfig;
 
 

@@ -691,7 +691,7 @@ export default function AuthPage() {
               />
               <div className="auth-logo-text">
                 <div className="auth-logo-name">Wak<span>Agenda</span></div>
-                <div className="auth-logo-sub">SABC · Direction des SI</div>
+                <div className="auth-logo-sub">SABC · DSI</div>
               </div>
             </div>
 
